@@ -347,4 +347,10 @@ class Config {
 
   static String get postApiUrlLocation =>
       remoteConfig.getString('LocationPostUrl');
+
+  // static String get postApiUrlTravelData => remoteConfig.getString('traveldataGetUrl');
+  static String get postApiUrlTravelData => remoteConfig.getString('traveldataGetUrl');
+  static String get postApiUrlcenterpoint => remoteConfig.getString('centerPointUrl');
+
+
 }

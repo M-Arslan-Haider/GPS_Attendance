@@ -243,6 +243,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../Models/add_shop_model.dart';
 import '../../Repositories/add_shop_repository.dart';
 import '../Databases/util.dart';
+import '../LocatioPoints/ravelTimeViewModel.dart';
 import 'location_view_model.dart';
 
 class AddShopViewModel extends GetxController {
@@ -250,7 +251,7 @@ class AddShopViewModel extends GetxController {
   final _shop = AddShopModel().obs;
   var allAddShop = <AddShopModel>[].obs;
   final locationViewModel = Get.put(LocationViewModel());
-
+  final TravelTimeViewModel travelTimeViewModel = Get.find<TravelTimeViewModel>();
   final _formKey = GlobalKey<FormState>();
 
   GlobalKey<FormState> get formKey => _formKey;
@@ -264,6 +265,18 @@ class AddShopViewModel extends GetxController {
   String shopCurrentMonth = DateFormat('MMM').format(DateTime.now());
   String currentuser_id = '';
 
+  ///added code
+  @override
+  void onReady() {
+    super.onReady();
+    travelTimeViewModel.setWorkingScreenStatus(true);
+  }
+
+  @override
+  void onClose() {
+    travelTimeViewModel.setWorkingScreenStatus(false);
+    super.onClose();
+  }
   @override
   Future<void> onInit() async {
     super.onInit();
@@ -292,13 +305,34 @@ class AddShopViewModel extends GetxController {
 
   void fetchCities() async {
     try {
+      print('🔄 Starting to fetch cities...');
       var fetchedCities = await _shopRepository.fetchCities();
-      // Clean up the city names before assigning to the observable list
-      cities.value = fetchedCities.map((city) => _cleanCityString(city)).toList();
+
+      print('✅ Cities fetched successfully: ${fetchedCities.length}');
+      print('📊 Cities sample: ${fetchedCities.take(10).toList()}');
+
+      // Observable list کو اپ ڈیٹ کریں
+      cities.value = fetchedCities;
+
+      print('🎉 Cities list updated in ViewModel');
+
     } catch (e) {
-      debugPrint('Failed to fetch cities: $e');
+      print('❌ Failed to fetch cities: $e');
+      // فیل بیک کے طور پر Shared Preferences سے ڈیٹا لوڈ کریں
+      var storedCities = await _shopRepository.getCitiesFromSharedPreferences();
+      cities.value = storedCities;
+      print('📦 Loaded ${storedCities.length} cities from storage');
     }
   }
+  // void fetchCities() async {
+  //   try {
+  //     var fetchedCities = await _shopRepository.fetchCities();
+  //     // Clean up the city names before assigning to the observable list
+  //     cities.value = fetchedCities.map((city) => _cleanCityString(city)).toList();
+  //   } catch (e) {
+  //     debugPrint('Failed to fetch cities: $e');
+  //   }
+  // }
 
   var selectedCity = ''.obs;
   var selectedCountry = ''.obs;
@@ -386,7 +420,7 @@ class AddShopViewModel extends GetxController {
       shopCurrentMonth = currentMonth;
     }
 
-    debugPrint('SR: $shopSerialCounter');
+    debugPrint('SRRRRRRRRRRR: $shopSerialCounter');
   }
 
   Future<void> _saveCounter() async {

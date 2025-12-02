@@ -215,21 +215,52 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:order_booking_app/Screens/Components/custom_switch.dart';
-import 'package:order_booking_app/Screens/code_screen.dart';
-import 'package:order_booking_app/Screens/signup_screen.dart';
+// import 'package:order_booking_app/Screens/code_screen.dart';
+// import 'package:order_booking_app/Screens/signup_screen.dart';
 import 'package:order_booking_app/ViewModels/location_view_model.dart';
+import '../LocatioPoints/ravelTimeViewModel.dart';
 import '../ViewModels/add_shop_view_model.dart';
 import 'Components/custom_button.dart';
 import 'Components/custom_dropdown_second.dart';
 import 'Components/validators.dart';
-import 'next_page.dart';
 
-class AddShopScreen extends StatelessWidget {
+
+// class AddShopScreen extends StatelessWidget {
+//   final AddShopViewModel _viewModel = Get.put(AddShopViewModel());
+//   final LocationViewModel locationViewModel = Get.put(LocationViewModel());
+//   AddShopScreen({super.key});
+class AddShopScreen extends StatefulWidget { // ✅ ABDULLAH: Changed to StatefulWidget
+  const AddShopScreen({super.key});
+
+  @override
+  State<AddShopScreen> createState() => _AddShopScreenState();
+}
+
+class _AddShopScreenState extends State<AddShopScreen> {
   final AddShopViewModel _viewModel = Get.put(AddShopViewModel());
-
   final LocationViewModel locationViewModel = Get.put(LocationViewModel());
-  AddShopScreen({super.key});
 
+  @override
+  void initState() {
+    super.initState();
+
+    // ✅ ABDULLAH: Set working status when entering Add Shop screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final travelTimeViewModel = Get.find<TravelTimeViewModel>();
+      travelTimeViewModel.setWorkingScreenStatus(true);
+      debugPrint("📍 [WORKING STATUS] Add Shop Screen - Working time ACTIVE");
+    });
+  }
+
+  @override
+  void dispose() {
+    // ✅ ABDULLAH: Reset working status when leaving Add Shop screen
+    final travelTimeViewModel = Get.find<TravelTimeViewModel>();
+    travelTimeViewModel.setWorkingScreenStatus(false);
+    debugPrint("📍 [WORKING STATUS] Add Shop Screen - Working time INACTIVE");
+
+    super.dispose();
+  }
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -275,14 +306,38 @@ class AddShopScreen extends StatelessWidget {
                         ? _viewModel.selectedCity.value
                         : 'Select a City',
                     onChanged: (value) {
-                      String selectedCity = value?.toString() ?? '';
-                      _viewModel.setShopField('city', selectedCity);
+                      if (value != null && value != 'Select a City') {
+                        String selectedCity = value.toString();
+                        _viewModel.setShopField('city', selectedCity);
+                      }
                     },
+
                     validator: (value) =>
                     value == null || value.isEmpty ? "Please select a City" : null,
                     textStyle: const TextStyle(
                         fontSize: 19, fontWeight: FontWeight.bold, color: Colors.black),
+                    showSerialNumbers: true, // یہاں serial numbers آن کریں
                   )),
+
+                  // Obx(() => CustomDropdownSecond(
+                  //   borderColor: Colors.black,
+                  //   iconColor: Colors.blue,
+                  //   label: "City",
+                  //   useBoxShadow: false,
+                  //   icon: Icons.location_city,
+                  //   items: _viewModel.cities.value,
+                  //   selectedValue: _viewModel.selectedCity.value.isNotEmpty
+                  //       ? _viewModel.selectedCity.value
+                  //       : 'Select a City',
+                  //   onChanged: (value) {
+                  //     String selectedCity = value?.toString() ?? '';
+                  //     _viewModel.setShopField('city', selectedCity);
+                  //   },
+                  //   validator: (value) =>
+                  //   value == null || value.isEmpty ? "Please select a City" : null,
+                  //   textStyle: const TextStyle(
+                  //       fontSize: 19, fontWeight: FontWeight.bold, color: Colors.black),
+                  // )),
 
                   _buildTextField(
                     label: "Shop Address",

@@ -2264,7 +2264,15 @@ class AttendanceViewModel extends GetxController {
   }
 
   String generateNewAttendanceId(String userId) {
+    // 👇 yahan define kar rahe hain current DateTime
+    final DateTime now = DateTime.now(); ///
+
     String currentMonth = DateFormat('MMM').format(DateTime.now());
+    ///
+    String currentDayNumber = DateFormat('dd').format(now); // 28 ///
+    // String currentDayName = DateFormat('E').format(now); // Thu ///
+
+
 
     if (currentuserId != userId) {
       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
@@ -2275,9 +2283,15 @@ class AttendanceViewModel extends GetxController {
       attendanceInSerialCounter = 1;
       attendanceInCurrentMonth = currentMonth;
     }
-
+    // String attendanceId =
+    //     "ATD-$userId-$currentMonth-$currentDayNumber-$currentDayName-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
     String attendanceId =
-        "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+        "ATD-$userId-$currentDayNumber-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+
+    debugPrint("🆔 Generated Attendance ID: $attendanceId");
+
+    // String attendanceId =
+    //     "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
 
     attendanceInSerialCounter++;
     _saveCounter();

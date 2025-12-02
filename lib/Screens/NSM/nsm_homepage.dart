@@ -714,7 +714,7 @@ import 'NSM_bookerbookingdetails.dart';
 import 'nsm_bookingStatus.dart';
 import 'NSM LOCATIONS/nsm_location_navigation.dart';
 import 'nsm_shopdetails.dart';
-import '../../main.dart';
+import '../../main.dart' hide checkForUpdate;
 import 'package:permission_handler/permission_handler.dart'
     show Permission, openAppSettings, ServiceStatus;
 

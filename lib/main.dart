@@ -117,7 +117,11 @@
 //     return Future.value(true);
 //   });
 // }
-//
+
+
+
+
+
 // // Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // //   await Firebase.initializeApp();
 // //   if (kDebugMode) {
@@ -408,7 +412,9 @@ import 'package:device_info_plus/device_info_plus.dart' show DeviceInfoPlugin;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 import 'package:order_booking_app/Screens/PermissionScreens/camera_screen.dart';
 import 'package:order_booking_app/Screens/code_screen.dart';
 import 'package:order_booking_app/Screens/home_screen.dart';
@@ -418,9 +424,17 @@ import 'package:order_booking_app/Screens/order_booking_status_screen.dart';
 import 'package:order_booking_app/Screens/recovery_form_screen.dart';
 import 'package:order_booking_app/Screens/return_form_screen.dart';
 import 'package:order_booking_app/screens/splash_screen.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
+import 'Cluster_Data/cluster_data_screen.dart';
+import 'Databases/dp_helper.dart';
 import 'Databases/util.dart';
+import 'GPX/advance_gpx_analysisScreen.dart';
+import 'GPX/gpx_viewer_screen.dart';
+import 'GPX/screen.dart';
+import 'LocatioPoints/ravelTimeViewModel.dart';
+import 'LocatioPoints/travel_time-screen.dart';
 import 'Screens/NSM/nsm_homepage.dart';
 import 'Screens/RSMS_Views/RSM_HomePage.dart';
 import 'Screens/SM/sm_homepage.dart';
@@ -452,6 +466,24 @@ import 'Tracker/location00.dart';
 import 'Tracker/trac.dart';
 import 'package:order_booking_app/ViewModels/login_view_model.dart';
 import 'package:android_intent_plus/android_intent.dart' as android_intent;
+
+import 'package:in_app_update/in_app_update.dart';
+
+import 'ViewModels/location_view_model.dart';
+
+// Future<void> checkForUpdate() async {
+//
+//   try {
+//     AppUpdateInfo info = await InAppUpdate.checkForUpdate();
+//
+//     if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+//       // agar update mil jaye to show karo
+//       InAppUpdate.performImmediateUpdate(); // ya flexible update use karo
+//     }
+//   } catch (e) {
+//     print("Error checking for update: $e");
+//   }
+// }
 
 
 // final LoginViewModel loginViewModel = Get.put(LoginViewModel());
@@ -499,6 +531,11 @@ Future<void> main() async {
       debugPrint("Background Service initialized.");
     }
 
+    Get.put(DBHelper(), permanent: true);
+
+    Get.put(TravelTimeViewModel(), permanent: true);
+    Get.put(LocationViewModel());
+
     debugPrint("Running the app...");
     runApp(MyApp(isAuthenticated));
     debugPrint("App is running.");
@@ -524,7 +561,105 @@ void callbackDispatcher() {
 //   }
 // }
 
+
+
+// class MyApp extends StatefulWidget {
+//   final bool isAuthenticated;
+//   const MyApp(this.isAuthenticated, {super.key});
+//
+//   @override
+//   State<MyApp> createState() => _MyAppState();
+// }
+
+// class _MyAppState extends State<MyApp> {
+//
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     checkVersion();
+//   }
+//
+//   Future<void> checkVersion() async {
+//     try {
+//       // 🔹 Get local app version
+//       final packageInfo = await PackageInfo.fromPlatform();
+//       String currentVersion = packageInfo.version;
+//       String packageName = packageInfo.packageName;
+//
+//       // 🔹 Fetch Play Store page HTML
+//       final response = await http.get(Uri.parse(
+//           "https://play.google.com/store/apps/details?id=$packageName&hl=en"));
+//
+//       if (response.statusCode == 200) {
+//         final html = response.body;
+//
+//         // 🔹 Extract version number from Play Store HTML
+//         final regExp = RegExp(r'\[\[\["([0-9]+\.[0-9]+\.[0-9]+)"\]\]');
+//         final match = regExp.firstMatch(html);
+//
+//         if (match != null) {
+//           String storeVersion = match.group(1) ?? '';
+//
+//           debugPrint("📱 Local version: $currentVersion");
+//           debugPrint("🛒 Play Store version: $storeVersion");
+//
+//           if (storeVersion.isNotEmpty && storeVersion != currentVersion) {
+//             Fluttertoast.showToast(
+//               msg: "⚠️ New update available! Please update app from Play Store.",
+//               toastLength: Toast.LENGTH_LONG,
+//               gravity: ToastGravity.BOTTOM,
+//               backgroundColor: Colors.redAccent,
+//               textColor: Colors.white,
+//               fontSize: 16.0,
+//             );
+//           }
+//         }
+//       }
+//     } catch (e) {
+//       debugPrint("❌ Version check failed: $e");
+//     }
+//   }
+//   // Future<void> checkForUpdate() async {
+//   //   try {
+//   //     AppUpdateInfo info = await InAppUpdate.checkForUpdate();
+//   //     if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+//   //       await InAppUpdate.performImmediateUpdate();
+//   //     }
+//   //   } catch (e) {
+//   //     debugPrint('Update check failed: $e');
+//   //   }
+//   // }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return GetMaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       initialRoute: widget.isAuthenticated ? pageName : '/CodeScreen',
+//       getPages: [
+//         GetPage(name: '/', page: () => const SplashScreen()),
+//         GetPage(name: '/login', page: () => const LoginScreen()),
+//         GetPage(name: '/home', page: () => const HomeScreen()),
+//         GetPage(name: '/cameraScreen', page: () => const CameraScreen()),
+//         GetPage(name: '/ShopVisitScreen', page: () => const ShopVisitScreen()),
+//         GetPage(name: '/OrderBookingScreen', page: () => const OrderBookingScreen()),
+//         GetPage(name: '/RecoveryFormScreen', page: () => RecoveryFormScreen()),
+//         GetPage(name: '/ReturnFormScreen', page: () => ReturnFormScreen()),
+//         GetPage(name: '/NSMHomepage', page: () => const NSMHomepage()),
+//         GetPage(name: '/RSMHomepage', page: () => const RSMHomepage()),
+//         GetPage(name: '/SMHomepage', page: () => const SMHomepage()),
+//         GetPage(name: '/CodeScreen', page: () => const CodeScreen()),
+//         GetPage(
+//           name: '/OrderBookingStatusScreen',
+//           page: () => OrderBookingStatusScreen(),
+//         ),
+//       ],
+//     );
+//   }
+// }
+
 class MyApp extends StatelessWidget {
+
   final bool isAuthenticated;
 
   MyApp(this.isAuthenticated);
@@ -554,6 +689,15 @@ class MyApp extends StatelessWidget {
         GetPage(
             name: '/OrderBookingStatusScreen',
             page: () => OrderBookingStatusScreen()),
+
+
+        GetPage(name: '/TravelTimeTestScreen', page: () => TravelTimeTestScreen()),
+        GetPage(name: '/CentralPointsTestScreen', page: () => CentralPointsTestScreen()),
+        // GetPage(name: '/GPXViewerScreen', page: () => GPXViewerScreen()),
+        GetPage(name: '/GPXViewerScreen', page: () => GPXViewerScreen()),
+        GetPage(name: '/GPXViewerScreen', page: () => FixedGPXClusterViewer()),
+        // GetPage(name: '/ClusterDataScreen', page: () => const ClusterDataScreen()),
+
       ],
       // home: SplashScreen()
       //home: const CodeScreen()
@@ -561,6 +705,7 @@ class MyApp extends StatelessWidget {
   }
 
 }
+
 
 
 void requestIgnoreBatteryOptimizations() {

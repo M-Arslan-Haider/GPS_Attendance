@@ -158,7 +158,7 @@ class Navbar extends StatelessWidget {
                     ),
                   );
                 },
-                child: const Icon(Icons.sync, color: Colors.white, size: 28), // ✅ SYNC ICON
+                child: const Icon(Icons.restart_alt_outlined, color: Colors.white, size: 31), // ✅ SYNC ICON
               ),
             ],
           ),

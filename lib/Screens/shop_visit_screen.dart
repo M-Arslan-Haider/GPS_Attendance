@@ -2460,9 +2460,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:order_booking_app/ViewModels/ProductsViewModel.dart';
+import '../LocatioPoints/ravelTimeViewModel.dart';
 import '../ViewModels/location_view_model.dart';
 import '../ViewModels/shop_visit_details_view_model.dart';
 import '../ViewModels/shop_visit_view_model.dart';
+// ✅✅ ABDULLAH: Added import for TravelTimeViewModel
+
 import 'Components/custom_button.dart';
 import 'Components/custom_dropdown.dart';
 import 'Components/custom_editable_menu_option.dart' hide IconPosition;
@@ -2490,6 +2493,12 @@ class _StateShopVisitScreen extends State<ShopVisitScreen> {
   @override
   void initState() {
     super.initState();
+    // ✅✅ ABDULLAH: Set working status when entering Shop Visit screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final travelTimeViewModel = Get.find<TravelTimeViewModel>();
+      travelTimeViewModel.setWorkingScreenStatus(true);
+      debugPrint("📍 [WORKING STATUS] Shop Visit Screen - Working time ACTIVE");
+    });
 
     feedBackController.text = shopVisitViewModel.feedBack.value;
     shopVisitViewModel.selectedShop.value = "";
@@ -2504,6 +2513,15 @@ class _StateShopVisitScreen extends State<ShopVisitScreen> {
         TextPosition(offset: feedBackController.text.length),
       );
     });
+  }
+  @override
+  void dispose() {
+    // ✅✅ ABDULLAH: Reset working status when leaving Shop Visit screen
+    final travelTimeViewModel = Get.find<TravelTimeViewModel>();
+    travelTimeViewModel.setWorkingScreenStatus(false);
+    debugPrint("📍 [WORKING STATUS] Shop Visit Screen - Working time INACTIVE");
+
+    super.dispose();
   }
 
   String? requiredDropdownValidator(String? value, String placeholder) {

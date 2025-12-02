@@ -102,24 +102,81 @@ class AddShopRepository extends GetxService {
       String? id, RxList<AddShopModel> allAddShop) async {
     await delete(id);
   }
-
   Future<List<String>> fetchCitiesFromApi() async {
-    String url = "${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.getApiUrlCities}";
-    List<dynamic> data = await ApiService.getData(url);
-    List<String> fetchedCities = data.map((city) => city.toString()).toList();
+    try {
+      String url = "${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.getApiUrlCities}";
+      if (kDebugMode) {
+        print('Fetching cities from: $url');
+      }
 
-    List<String> storedCities = await getCitiesFromSharedPreferences();
-    List<String> newCities =
-    fetchedCities.where((city) => !storedCities.contains(city)).toList();
-    List<String> removedCities =
-    storedCities.where((city) => !fetchedCities.contains(city)).toList();
+      List<dynamic> data = await ApiService.getData(url);
 
-    storedCities.addAll(newCities);
-    removedCities.forEach((city) => storedCities.remove(city));
+      if (kDebugMode) {
+        print('Raw cities data from API: ${data.length} items');
+        print('First 10 cities: ${data.take(10).toList()}');
+      }
 
-    await saveCitiesToSharedPreferences(storedCities);
-    return storedCities;
+      // ڈیٹا کو بہتر طریقے سے کلین کریں
+      List<String> fetchedCities = data.map((city) {
+        if (city is String) {
+          return _cleanCityString(city);
+        } else if (city is Map) {
+          // اگر ڈیٹا Map کی شکل میں ہے
+          return _cleanCityString(city['city']?.toString() ?? city['name']?.toString() ?? '');
+        } else {
+          return city.toString();
+        }
+      }).where((city) => city.isNotEmpty).toList();
+
+      // ڈپلیکیٹس کو ہٹائیں
+      fetchedCities = fetchedCities.toSet().toList();
+
+      if (kDebugMode) {
+        print('Cleaned cities: ${fetchedCities.length} items');
+        print('First 10 cleaned cities: ${fetchedCities.take(10).toList()}');
+      }
+
+      await saveCitiesToSharedPreferences(fetchedCities);
+      return fetchedCities;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error fetching cities from API: $e');
+      }
+      return [];
+    }
   }
+
+  String _cleanCityString(String cityString) {
+    if (cityString.isEmpty) return '';
+
+    // مختلف فارمیٹس کو ہینڈل کریں
+    String cleaned = cityString
+        .replaceAll(RegExp(r'\{city:\s*', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\}'), '')
+        .replaceAll(RegExp(r'^"|"$'), '') // quotes ہٹائیں
+        .trim();
+
+    // اگر خالی ہے تو واپس لوٹائیں
+    return cleaned.isEmpty ? cityString.trim() : cleaned;
+  }
+
+  // Future<List<String>> fetchCitiesFromApi() async {
+  //   String url = "${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.getApiUrlCities}";
+  //   List<dynamic> data = await ApiService.getData(url);
+  //   List<String> fetchedCities = data.map((city) => city.toString()).toList();
+  //
+  //   List<String> storedCities = await getCitiesFromSharedPreferences();
+  //   List<String> newCities =
+  //   fetchedCities.where((city) => !storedCities.contains(city)).toList();
+  //   List<String> removedCities =
+  //   storedCities.where((city) => !fetchedCities.contains(city)).toList();
+  //
+  //   storedCities.addAll(newCities);
+  //   removedCities.forEach((city) => storedCities.remove(city));
+  //
+  //   await saveCitiesToSharedPreferences(storedCities);
+  //   return storedCities;
+  // }
 
   Future<void> saveCitiesToSharedPreferences(List<String> cities) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -206,9 +263,8 @@ class AddShopRepository extends GetxService {
               print('Shop with id ${shop.shop_id} posted and updated in local database.');
             }
           } catch (e) {
-            if (kDebugMode) {
-              print('Failed to post shop with id ${shop.shop_id}: $e');
-            }
+
+              debugPrint('Failed to post shop with id ${shop.shop_id}: $e');
             // Continue with next shop even if one fails
           }
         }
@@ -220,9 +276,8 @@ class AddShopRepository extends GetxService {
         }
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Error fetching unposted shops: $e');
-      }
+
+        debugPrint('Error fetching unposted shops: $e');
     } finally {
       isSyncing(false);
     }
@@ -231,9 +286,9 @@ class AddShopRepository extends GetxService {
   Future<void> postShopToAPI(AddShopModel shop) async {
     try {
       await Config.fetchLatestConfig();
-      if (kDebugMode) {
-        print('Updated Shop Post API: ${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.postApiUrlShops}');
-      }
+
+        debugPrint('Updated Shop Post API: ${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.postApiUrlShops}');
+
       var shopData = shop.toMap();
       final response = await http.post(
         Uri.parse("${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.postApiUrlShops}"),
@@ -245,13 +300,13 @@ class AddShopRepository extends GetxService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('Shop data posted successfully: $shopData');
+        debugPrint('Shop data posted successfully: $shopData');
       } else {
         throw Exception(
             'Server error: ${response.statusCode}, ${response.body}');
       }
     } catch (e) {
-      print('Error posting shop data: $e');
+      debugPrint('Error posting shop data: $e');
       throw Exception('Failed to post data: $e');
     }
   }

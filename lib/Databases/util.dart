@@ -69,6 +69,14 @@ const productsTableName = "products";
 const tableNameLogin ='login';
 const headsShopVisitsTableName = 'HeadsShopVisits';
 
+const travelTimeData = 'travelTimeData';
+const travelDataMasterTable = 'travelTimeData';
+const centralPointsTableName = 'central_points_table';
+const locationClusters = 'locationClusters';
+
+ const String centralPoints = 'centralPoints';
+// const visit_logs = 'visit_logs';
+
 
 // Future<bool> isNetworkAvailable() async {
 //   var connectivityResult = await (Connectivity().checkConnectivity());
@@ -95,7 +103,7 @@ const headsShopVisitsTableName = 'HeadsShopVisits';
 //   }
 //   return false;
 // }
-String  version="v0.1.1";
+String  version="v0.1.2";
 dynamic shopAddress = "";
 
 Future<bool> isNetworkAvailable() async {

@@ -1809,7 +1809,8 @@ class LocationViewModel extends GetxController {
       LatLng overallCenter = gpxService.calculateCentralPoint(coordinates);
 
       // 4. Create clusters
-      var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+      // var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+      var clusters = gpxService.clusterCoordinates(coordinates, clusterDistanceMeters: 0.1);
       var centers = gpxService.calculateClusterCenters(clusters);
 
       debugPrint("🗂 24 Hours Summary:");
@@ -1877,7 +1878,8 @@ class LocationViewModel extends GetxController {
       var timeClusters = await clusterByTimeRanges(coordinates, allPoints);
 
       // 3. Enhanced cluster analysis
-      var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+      // var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+      var clusters = gpxService.clusterCoordinates(coordinates, clusterDistanceMeters: 0.1);
       var stayTimes = await _calculateClusterStayTimes(allPoints, clusters);
       var clusterAreas = _calculateClusterAreas(clusters);
 
@@ -1961,7 +1963,8 @@ class LocationViewModel extends GetxController {
       debugPrint("🎯 Overall Central Point: ${overallCenter.latitude}, ${overallCenter.longitude}");
 
       // 3. Clustering karein
-      var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+      // var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+      var clusters = gpxService.clusterCoordinates(coordinates, clusterDistanceMeters: 0.1);
       var centers = gpxService.calculateClusterCenters(clusters);
       clusterCenters.value = centers;
 

@@ -75,6 +75,7 @@ const centralPointsTableName = 'central_points_table';
 const locationClusters = 'locationClusters';
 
  const String centralPoints = 'centralPoints';
+ const String leaveTable = 'leaveTable';
 // const visit_logs = 'visit_logs';
 
 

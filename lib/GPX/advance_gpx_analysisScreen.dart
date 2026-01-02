@@ -727,4 +727,140 @@ class _FixedGPXClusterViewerState extends State<FixedGPXClusterViewer> {
       ),
     );
   }
+  // Cluster analysis method ko 50m rule ke saath update karein
+  Map<String, List<LatLng>> _performClusteringWith50mRule(List<LatLng> points) {
+    const double clusterRadiusMeters = 50.0;
+    debugPrint("🗂️ Performing clustering with 50m rule...");
+
+    Map<String, List<LatLng>> resultClusters = {};
+    List<LatLng> clusterCentersList = [];
+
+    for (var point in points) {
+      debugPrint("📌 Processing point: ${point.latitude}, ${point.longitude}");
+
+      bool addedToCluster = false;
+
+      // Check against existing cluster centers
+      for (int i = 0; i < clusterCentersList.length; i++) {
+        LatLng clusterCenter = clusterCentersList[i];
+        double distance = _calculateHaversineDistanceInMeters(point, clusterCenter);
+
+        if (distance <= clusterRadiusMeters) {
+          // Find which cluster this center belongs to
+          for (var entry in resultClusters.entries) {
+            LatLng entryCenter = _parseClusterKey(entry.key);
+            if (entryCenter.latitude == clusterCenter.latitude &&
+                entryCenter.longitude == clusterCenter.longitude) {
+
+              resultClusters[entry.key]!.add(point);
+              addedToCluster = true;
+
+              // Update cluster center
+              LatLng newCenter = _calculateCentroid(resultClusters[entry.key]!);
+              String newKey = "${newCenter.latitude},${newCenter.longitude}";
+
+              if (newKey != entry.key) {
+                resultClusters[newKey] = resultClusters[entry.key]!;
+                resultClusters.remove(entry.key);
+                clusterCentersList[i] = newCenter;
+              }
+
+              debugPrint("   ➕ Added to existing cluster (${distance.toStringAsFixed(2)}m away)");
+              break;
+            }
+          }
+          break;
+        }
+      }
+
+      if (!addedToCluster) {
+        String newClusterKey = "${point.latitude},${point.longitude}";
+        debugPrint("   🆕 Creating new cluster: $newClusterKey");
+        resultClusters[newClusterKey] = [point];
+        clusterCentersList.add(point);
+      }
+    }
+
+    // Final pass: Ensure no two clusters are within 50m
+    resultClusters = _mergeCloseClusters(resultClusters, clusterRadiusMeters);
+
+    debugPrint("✅ Clustering complete. Found ${resultClusters.length} clusters");
+    return resultClusters;
+  }
+
+  double _calculateHaversineDistanceInMeters(LatLng point1, LatLng point2) {
+    const double earthRadius = 6371.0;
+
+    double lat1 = point1.latitude * (pi / 180.0);
+    double lon1 = point1.longitude * (pi / 180.0);
+    double lat2 = point2.latitude * (pi / 180.0);
+    double lon2 = point2.longitude * (pi / 180.0);
+
+    double dLat = lat2 - lat1;
+    double dLon = lon2 - lon1;
+
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2);
+
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    double distanceKm = earthRadius * c;
+    return distanceKm * 1000; // Convert to meters
+  }
+
+  LatLng _calculateCentroid(List<LatLng> points) {
+    if (points.isEmpty) return LatLng(0, 0);
+
+    double totalLat = 0.0;
+    double totalLng = 0.0;
+
+    for (var point in points) {
+      totalLat += point.latitude;
+      totalLng += point.longitude;
+    }
+
+    return LatLng(totalLat / points.length, totalLng / points.length);
+  }
+
+  Map<String, List<LatLng>> _mergeCloseClusters(
+      Map<String, List<LatLng>> clusters,
+      double thresholdMeters) {
+
+    Map<String, List<LatLng>> merged = {};
+    List<String> keys = clusters.keys.toList();
+    List<bool> mergedFlags = List.filled(keys.length, false);
+
+    for (int i = 0; i < keys.length; i++) {
+      if (mergedFlags[i]) continue;
+
+      String currentKey = keys[i];
+      LatLng currentCenter = _parseClusterKey(currentKey);
+      List<LatLng> currentPoints = clusters[currentKey]!;
+
+      for (int j = i + 1; j < keys.length; j++) {
+        if (mergedFlags[j]) continue;
+
+        String otherKey = keys[j];
+        LatLng otherCenter = _parseClusterKey(otherKey);
+
+        double distance = _calculateHaversineDistanceInMeters(currentCenter, otherCenter);
+
+        if (distance <= thresholdMeters) {
+          debugPrint("   🔗 Merging clusters (distance: ${distance.toStringAsFixed(2)}m)");
+          currentPoints.addAll(clusters[otherKey]!);
+          mergedFlags[j] = true;
+        }
+      }
+
+      if (!mergedFlags[i]) {
+        LatLng newCenter = _calculateCentroid(currentPoints);
+        String newKey = "${newCenter.latitude},${newCenter.longitude}";
+        merged[newKey] = currentPoints;
+        mergedFlags[i] = true;
+      }
+    }
+
+    return merged;
+  }
+
 }

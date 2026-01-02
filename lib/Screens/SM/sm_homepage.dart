@@ -733,6 +733,7 @@ import 'package:in_app_update/in_app_update.dart';
 import 'package:order_booking_app/Databases/util.dart';
 import 'package:order_booking_app/Screens/SM/SMOrderDetails/sm_order_details_screen.dart';
 import 'package:order_booking_app/Screens/SM/sm_shopdetails.dart';
+import 'package:order_booking_app/Screens/leave_form_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:location/location.dart' as loc;
 import '../../Databases/dp_helper.dart';
@@ -871,6 +872,7 @@ class _SMHomepageState extends State<SMHomepage> {
                       _buildModernCard(context, "SHOPS DETAILS", Icons.info_outline_rounded, Colors.teal, iconSize, fontSize),
                       _buildModernCard(context, "BOOKERS ORDER DETAILS", Icons.receipt_long_rounded, Colors.deepPurple, iconSize, fontSize),
                       _buildModernCard(context, "LOCATION", Icons.location_on_rounded, Colors.orange, iconSize, fontSize),
+                      _buildModernCard(context, "LEAVE", Icons.event_busy, Colors.blueGrey, iconSize, fontSize),
                     ],
                   ),
                 ),
@@ -968,6 +970,9 @@ class _SMHomepageState extends State<SMHomepage> {
         break;
       case 'LOCATION':
         Navigator.push(context, MaterialPageRoute(builder: (context) => smnavigation()));
+        break;
+      case 'LEAVE':
+        Navigator.push(context, MaterialPageRoute(builder: (context) => LeaveFormScreen()));
         break;
     }
   }

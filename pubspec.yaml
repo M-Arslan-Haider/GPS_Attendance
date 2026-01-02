@@ -115,6 +115,7 @@ dependencies:
   latlong2: ^0.9.1
   flutter_map: ^8.2.2
   file_picker: ^10.3.7
+  mqtt_client: ^10.11.3
 
 #  flutter_asset_manager: ^0.0.2
   #flutter_automation: ^2.0.0

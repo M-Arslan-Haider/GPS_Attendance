@@ -5,6 +5,7 @@ const String logoApple = 'assets/samples/ui/rive_app/images/logo_apple.png';
 const String logoGoogle = 'assets/samples/ui/rive_app/images/logo_google.png';
 const String add_shop = 'assets/samples/ui/rive_app/images/add_shop.ico';
 const String order_booking_status = 'assets/samples/ui/rive_app/images/order_booking_status.ico';
+const String leave = 'assets/samples/ui/rive_app/images/leave_image.jpg' ;
 const String recovery2 = 'assets/samples/ui/rive_app/images/recovery2.ico';
 const String return_form = 'assets/samples/ui/rive_app/images/return_form.ico';
 const String shop_visit = 'assets/samples/ui/rive_app/images/shop_visit.ico';

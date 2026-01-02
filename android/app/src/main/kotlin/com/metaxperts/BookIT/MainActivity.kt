@@ -26,3 +26,4 @@ class MainActivity : FlutterActivity(), ProviderInstaller.ProviderInstallListene
         GoogleApiAvailability.getInstance().showErrorNotification(this, errorCode)
     }
 }
+

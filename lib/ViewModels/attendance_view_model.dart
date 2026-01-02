@@ -1,4 +1,388 @@
-// ///16-10-25
+// //
+// // import 'dart:async';
+// // import 'dart:io';
+// // import 'package:http/http.dart' as http;
+// // import 'package:flutter/foundation.dart';
+// // import 'package:flutter/material.dart';
+// // import 'package:get/get.dart';
+// // import 'package:geolocator/geolocator.dart';
+// // import 'package:intl/intl.dart';
+// // import 'package:order_booking_app/Databases/util.dart';
+// // import 'package:order_booking_app/ViewModels/location_view_model.dart';
+// // import 'package:shared_preferences/shared_preferences.dart';
+// // import '../Models/attendance_Model.dart';
+// // import '../Repositories/attendance_repository.dart';
+// // import '../Services/FirebaseServices/firebase_remote_config.dart';
+// //
+// // class AttendanceViewModel extends GetxController {
+// //   var allAttendance = <AttendanceModel>[].obs;
+// //   final AttendanceRepository attendanceRepository = Get.put(AttendanceRepository());
+// //   final LocationViewModel locationViewModel = Get.put(LocationViewModel());
+// //
+// //   // --- TIMER AND STATE VARIABLES ---
+// //   var isClockedIn = false.obs;
+// //   DateTime? _clockInTime;
+// //   Timer? _timer;
+// //   var elapsedTime = '00:00:00'.obs;
+// //   var isLoading = false.obs;
+// //   // ---------------------------------
+// //
+// //   int attendanceInSerialCounter = 1;
+// //   String attendanceInCurrentMonth = DateFormat('MMM').format(DateTime.now());
+// //   String currentuserId = '';
+// //
+// //   @override
+// //   void onInit() {
+// //     super.onInit();
+// //     fetchAllAttendance();
+// //     _loadInitialClockState();
+// //   }
+// //
+// //   @override
+// //   void onClose() {
+// //     _stopTimer();
+// //     super.onClose();
+// //   }
+// //
+// //   // 🎯 SIMPLE LOCATION CHECK - ONLY CHECKS IF SERVICE IS ENABLED
+// //   Future<bool> isLocationAvailable() async {
+// //     try {
+// //       bool isLocationEnabled = await Geolocator.isLocationServiceEnabled();
+// //       return isLocationEnabled; // Simple true/false
+// //     } catch (e) {
+// //       return true; // Even on error, allow clock-in
+// //     }
+// //   }
+// //
+// //   // 🎯 MAIN CLOCK-IN METHOD - INSTANT SUCCESS
+// //   Future<void> saveFormAttendanceIn() async {
+// //     debugPrint("🎯 CLOCK-IN STARTED");
+// //
+// //     // 1. Check if already clocked in
+// //     if (isClockedIn.value) {
+// //       Get.snackbar(
+// //         'Already Clocked In',
+// //         'You are already clocked in',
+// //         snackPosition: SnackPosition.TOP,
+// //         backgroundColor: Colors.green,
+// //       );
+// //       return;
+// //     }
+// //
+// //     // 2. QUICK location service check ONLY
+// //     bool locationAvailable = await isLocationAvailable();
+// //     if (!locationAvailable) {
+// //       Get.snackbar(
+// //         'Location Required',
+// //         'Please turn on device location',
+// //         backgroundColor: Colors.red,
+// //       );
+// //       return;
+// //     }
+// //
+// //     debugPrint("✅ Location ON - CLOCKING IN NOW");
+// //
+// //     // 3. INSTANTLY SET CLOCK-IN STATE (NO AWAIT)
+// //     _clockInTime = DateTime.now();
+// //     isClockedIn.value = true;
+// //     elapsedTime.value = '00:00:00';
+// //     _startTimer();
+// //
+// //     // 4. SHOW SUCCESS IMMEDIATELY
+// //     Get.snackbar(
+// //       'Clock-In Successful',
+// //       'You are now clocked in',
+// //       backgroundColor: Colors.green,
+// //     );
+// //
+// //     debugPrint("✅ CLOCK-IN COMPLETED - USER SEES SUCCESS");
+// //
+// //     // 5. BACKGROUND TASKS - FIRE AND FORGET (NO AWAIT)
+// //     // _handleAllBackgroundTasks();
+// //     await _handleAllBackgroundTasks(); // ✅ ADD AWAIT
+// //   }
+// //
+// //   /// added code
+// //   // 🛰 ALL BACKGROUND TASKS - WITH BLOCKING SYNC
+// //   Future<void> _handleAllBackgroundTasks() async { // ✅ CHANGE: void → Future<void>
+// //     debugPrint("🛰 Starting background tasks with BLOCKING sync...");
+// //
+// //     try {
+// //       // A. Save to SharedPreferences
+// //       SharedPreferences prefs = await SharedPreferences.getInstance();
+// //       await prefs.setString('clockInTime', _clockInTime!.toIso8601String());
+// //       debugPrint("✅ Background: Saved to SharedPreferences");
+// //
+// //       // B. Generate attendance data
+// //       await _loadCounter();
+// //       final attendanceId = generateNewAttendanceId(user_id);
+// //       await prefs.setString('attendanceId', attendanceId);
+// //       await prefs.remove('totalDistance');
+// //       await prefs.setInt('secondsPassed', 0);
+// //       debugPrint("✅ Background: Generated attendance ID: $attendanceId");
+// //
+// //       // C. Save to local database
+// //       addAttendance(
+// //         AttendanceModel(
+// //           attendance_in_id: attendanceId,
+// //           user_id: user_id,
+// //           city: userCity,
+// //           booker_name: userName,
+// //           lat_in: locationViewModel.globalLatitude1.value,
+// //           lng_in: locationViewModel.globalLongitude1.value,
+// //           designation: userDesignation,
+// //           address: locationViewModel.shopAddress.value,
+// //         ),
+// //       );
+// //       debugPrint("✅ Background: Saved to local database");
+// //
+// //       // D. ✅ BLOCKING SERVER SYNC (Like clock-out)
+// //       debugPrint("🌐 [ATTENDANCE-IN] Starting BLOCKING server sync...");
+// //
+// //       final internetStatus = await _checkInternetSpeed().timeout(
+// //         Duration(seconds: 3),
+// //         onTimeout: () => 'none',
+// //       );
+// //
+// //       if (internetStatus == 'fast') {
+// //         debugPrint("🌐 [ATTENDANCE-IN] Calling postDataFromDatabaseToAPI with AWAIT");
+// //         await attendanceRepository.postDataFromDatabaseToAPI(); // ✅ AWAIT COMPLETION
+// //         debugPrint("✅ [ATTENDANCE-IN] BLOCKING server sync completed");
+// //       } else {
+// //         debugPrint("🌐 [ATTENDANCE-IN] No internet - will sync later");
+// //       }
+// //
+// //     } catch (e) {
+// //       debugPrint("⚠ Background tasks error: $e");
+// //     }
+// //   }
+// //   // 🌐 SERVER SYNC - IMMEDIATE (LIKE CLOCK-OUT)
+// //   void _tryServerSync() async {
+// //     try {
+// //       debugPrint("🌐 [ATTENDANCE-IN] Immediate server sync started");
+// //
+// //       // Quick internet check
+// //       final internetStatus = await _checkInternetSpeed().timeout(
+// //         Duration(seconds: 2),
+// //         onTimeout: () => 'none',
+// //       );
+// //
+// //       debugPrint("🌐 [ATTENDANCE-IN] Internet status: $internetStatus");
+// //
+// //       if (internetStatus == 'fast') {
+// //         debugPrint("🌐 [ATTENDANCE-IN] Calling postDataFromDatabaseToAPI immediately");
+// //         await attendanceRepository.postDataFromDatabaseToAPI(); // ✅ AWAIT COMPLETION
+// //         debugPrint("✅ [ATTENDANCE-IN] Immediate server sync completed");
+// //       } else {
+// //         debugPrint("🌐 [ATTENDANCE-IN] No internet - skipping sync");
+// //       }
+// //     } catch (e) {
+// //       debugPrint("⚠ [ATTENDANCE-IN] Immediate sync failed: $e");
+// //       // Don't throw - data is saved locally
+// //     }
+// //   }
+// //
+// //
+// //
+// //   // --- TIMER METHODS ---
+// //   Future<void> _loadInitialClockState() async {
+// //     SharedPreferences prefs = await SharedPreferences.getInstance();
+// //     String? clockInTimeString = prefs.getString('clockInTime');
+// //
+// //     if (clockInTimeString != null) {
+// //       _clockInTime = DateTime.parse(clockInTimeString);
+// //       isClockedIn.value = true;
+// //       _startTimer();
+// //     }
+// //   }
+// //
+// //   void _startTimer() {
+// //     if (_clockInTime == null) return;
+// //
+// //     _timer?.cancel();
+// //
+// //     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+// //       final now = DateTime.now();
+// //       final duration = now.difference(_clockInTime!);
+// //
+// //       String twoDigits(int n) => n.toString().padLeft(2, '0');
+// //       String hours = twoDigits(duration.inHours);
+// //       String minutes = twoDigits(duration.inMinutes.remainder(60));
+// //       String seconds = twoDigits(duration.inSeconds.remainder(60));
+// //
+// //       elapsedTime.value = '$hours:$minutes:$seconds';
+// //
+// //       if (duration.inSeconds % 60 == 0) {
+// //         debugPrint("⏰ Attendance Timer: ${elapsedTime.value}");
+// //       }
+// //
+// //       _saveTotalTime(elapsedTime.value);
+// //     });
+// //     debugPrint('✅ Attendance Timer started at: $_clockInTime');
+// //   }
+// //
+// //   void _stopTimer() {
+// //     _timer?.cancel();
+// //     _timer = null;
+// //     debugPrint('🛑 Attendance Timer stopped');
+// //   }
+// //
+// //   Future<void> _saveTotalTime(String time) async {
+// //     SharedPreferences prefs = await SharedPreferences.getInstance();
+// //     await prefs.setString('totalTime', time);
+// //     debugPrint("✅ Saved total time to preferences: $time");
+// //   }
+// //
+// //   Future<void> clearClockInState() async {
+// //     _stopTimer();
+// //     isClockedIn.value = false;
+// //     _clockInTime = null;
+// //     elapsedTime.value = '00:00:00';
+// //     SharedPreferences prefs = await SharedPreferences.getInstance();
+// //     await prefs.remove('clockInTime');
+// //     await prefs.remove('attendanceId');
+// //     await prefs.remove('totalTime');
+// //     await prefs.remove('totalDistance');
+// //     await prefs.setInt('secondsPassed', 0);
+// //     debugPrint("🔄 Clock-in state cleared");
+// //   }
+// //
+// //   // --- SERIAL NUMBER METHODS ---
+// //   Future<void> _loadCounter() async {
+// //     SharedPreferences prefs = await SharedPreferences.getInstance();
+// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
+// //
+// //     attendanceInSerialCounter =
+// //         prefs.getInt('attendanceInSerialCounter') ?? (attendanceInHighestSerial ?? 1);
+// //     attendanceInCurrentMonth =
+// //         prefs.getString('attendanceInCurrentMonth') ?? currentMonth;
+// //     currentuserId = prefs.getString('currentuserId') ?? '';
+// //
+// //     if (attendanceInCurrentMonth != currentMonth) {
+// //       attendanceInSerialCounter = 1;
+// //       attendanceInCurrentMonth = currentMonth;
+// //     }
+// //
+// //     debugPrint('Loaded Serial Counter: $attendanceInSerialCounter');
+// //   }
+// //
+// //   Future<void> _saveCounter() async {
+// //     SharedPreferences prefs = await SharedPreferences.getInstance();
+// //     await prefs.setInt('attendanceInSerialCounter', attendanceInSerialCounter);
+// //     await prefs.setString('attendanceInCurrentMonth', attendanceInCurrentMonth);
+// //     await prefs.setString('currentuserId', currentuserId);
+// //   }
+// //
+// //   // String generateNewAttendanceId(String userId) {
+// //   //   // 👇 yahan define kar rahe hain current DateTime
+// //   //   final DateTime now = DateTime.now(); ///
+// //   //
+// //   //   String currentMonth = DateFormat('MMM').format(DateTime.now());
+// //   //   ///
+// //   //   String currentDayNumber = DateFormat('dd').format(now); // 28 ///
+// //   //   // String currentDayName = DateFormat('E').format(now); // Thu ///
+// //   //
+// //   //
+// //   //
+// //   //   if (currentuserId != userId) {
+// //   //     attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+// //   //     currentuserId = userId;
+// //   //   }
+// //   //
+// //   //   if (attendanceInCurrentMonth != currentMonth) {
+// //   //     attendanceInSerialCounter = 1;
+// //   //     attendanceInCurrentMonth = currentMonth;
+// //   //   }
+// //   //   // String attendanceId =
+// //   //   //     "ATD-$userId-$currentMonth-$currentDayNumber-$currentDayName-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+// //   //   String attendanceId =
+// //   //       "ATD-$userId-$currentDayNumber-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+// //   //
+// //   //   debugPrint("🆔 Generated Attendance ID: $attendanceId");
+// //   //
+// //   //   // String attendanceId =
+// //   //   //     "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+// //   //
+// //   //   attendanceInSerialCounter++;
+// //   //   _saveCounter();
+// //   //
+// //   //   return attendanceId;
+// //   // }
+// //
+// //   // --- INTERNET CHECK ---
+// //   String generateNewAttendanceId(String userId) {
+// //     final DateTime now = DateTime.now();
+// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
+// //     String currentDayNumber = DateFormat('dd').format(now);
+// //
+// //     if (currentuserId != userId) {
+// //       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+// //       currentuserId = userId;
+// //     }
+// //
+// //     if (attendanceInCurrentMonth != currentMonth) {
+// //       attendanceInSerialCounter = 1;
+// //       attendanceInCurrentMonth = currentMonth;
+// //     }
+// //
+// //     String attendanceId = "ATD-$userId-$currentDayNumber-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+// //
+// //     debugPrint("🆔 Generated Attendance ID: $attendanceId");
+// //
+// //     attendanceInSerialCounter++;
+// //     _saveCounter();
+// //
+// //     return attendanceId;
+// //   }
+// //
+// //
+// //   Future<String> _checkInternetSpeed() async {
+// //     try {
+// //       final response = await http.head(Uri.parse('https://www.google.com'))
+// //           .timeout(const Duration(seconds: 3));
+// //
+// //       if (response.statusCode == 200) {
+// //         return 'fast';
+// //       } else {
+// //         return 'slow';
+// //       }
+// //     } on TimeoutException {
+// //       return 'slow';
+// //     } on SocketException {
+// //       return 'none';
+// //     } catch (e) {
+// //       debugPrint('Internet check failed: $e');
+// //       return 'none';
+// //     }
+// //   }
+// //
+// //   // --- DATABASE METHODS ---
+// //   Future<void> fetchAllAttendance() async {
+// //     var attendance = await attendanceRepository.getAttendance();
+// //     allAttendance.value = attendance;
+// //   }
+// //
+// //   void addAttendance(AttendanceModel attendanceModel) {
+// //     attendanceRepository.add(attendanceModel);
+// //     fetchAllAttendance();
+// //   }
+// //
+// //   void updateAttendance(AttendanceModel attendanceModel) {
+// //     attendanceRepository.update(attendanceModel);
+// //     fetchAllAttendance();
+// //   }
+// //
+// //   void deleteAttendance(String id) {
+// //     attendanceRepository.delete(id);
+// //     fetchAllAttendance();
+// //   }
+// //
+// //   Future<void> serialCounterGet() async {
+// //     await attendanceRepository.serialNumberGeneratorApi();
+// //   }
+// // }
+//
+//
 // import 'dart:async';
 // import 'dart:io';
 // import 'package:http/http.dart' as http;
@@ -20,10 +404,10 @@
 //   final LocationViewModel locationViewModel = Get.put(LocationViewModel());
 //
 //   // --- TIMER AND STATE VARIABLES ---
-//   var isClockedIn = false.obs; // Tracks if the user is currently clocked in
-//   DateTime? _clockInTime; // Stores the actual clock-in DateTime
-//   Timer? _timer; // The timer object
-//   var elapsedTime = '00:00:00'.obs; // Display string for elapsed time
+//   var isClockedIn = false.obs;
+//   DateTime? _clockInTime;
+//   Timer? _timer;
+//   var elapsedTime = '00:00:00'.obs;
 //   var isLoading = false.obs;
 //   // ---------------------------------
 //
@@ -35,310 +419,343 @@
 //   void onInit() {
 //     super.onInit();
 //     fetchAllAttendance();
-//     _loadInitialClockState(); // Load clock state on init
+//     _loadInitialClockState();
+//     _initializeAttendanceCounter();
 //   }
 //
-//   // Handle disposal of the timer
 //   @override
 //   void onClose() {
 //     _stopTimer();
 //     super.onClose();
 //   }
 //
-//   // LOCATION CHECK METHOD
+//   // ✅ INITIALIZE COUNTER PROPERLY
+//   Future<void> _initializeAttendanceCounter() async {
+//     SharedPreferences prefs = await SharedPreferences.getInstance();
 //
+//     // Check if new day
+//     String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+//     String lastProcessedDay = prefs.getString('lastAttendanceDay') ?? '';
+//
+//     if (lastProcessedDay != today) {
+//       // New day, reset counter to highest serial from server
+//       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+//       attendanceInCurrentMonth = DateFormat('MMM').format(DateTime.now());
+//       currentuserId = user_id;
+//
+//       await prefs.setInt('attendanceInSerialCounter', attendanceInSerialCounter);
+//       await prefs.setString('attendanceInCurrentMonth', attendanceInCurrentMonth);
+//       await prefs.setString('currentuserId', currentuserId);
+//       await prefs.setString('lastAttendanceDay', today);
+//
+//       debugPrint("🔄 New day detected - Counter initialized to: $attendanceInSerialCounter");
+//     } else {
+//       // Load existing counter
+//       await _loadCounter();
+//     }
+//   }
+//
+//   // 🎯 SIMPLE LOCATION CHECK - ONLY CHECKS IF SERVICE IS ENABLED
 //   Future<bool> isLocationAvailable() async {
 //     try {
-//       debugPrint("⚡ ULTRA-FAST location check - NO GPS WAITING");
-//
-//       // 1. INSTANT check if location service is enabled
 //       bool isLocationEnabled = await Geolocator.isLocationServiceEnabled();
-//
-//       if (!isLocationEnabled) {
-//         debugPrint("❌ Location is OFF - BLOCKING clock-in");
-//         Get.snackbar(
-//           'Location Required',
-//           'Please turn on Location in device settings to clock in',
-//           backgroundColor: Colors.red,
-//           colorText: Colors.white,
-//         );
-//         return false;
-//       }
-//
-//       debugPrint("✅ Location is ON - PROCEEDING IMMEDIATELY");
-//
-//       // 2. SET COORDINATES TO ZERO IMMEDIATELY (no waiting)
-//       LocationViewModel locationVM = Get.find<LocationViewModel>();
-//       locationVM.globalLatitude1.value = 0.0;
-//       locationVM.globalLongitude1.value = 0.0;
-//
-//       // 3. TRY TO GET COORDINATES IN BACKGROUND (fire and forget)
-//       _tryGetCoordinatesInBackground();
-//
-//       return true; // ✅ ALWAYS ALLOW CLOCK-IN IF LOCATION IS ON
-//
+//       return isLocationEnabled; // Simple true/false
 //     } catch (e) {
-//       debugPrint("⚠ Location check error: $e - but ALLOWING clock-in");
-//       // Even on error, allow clock-in
-//       return true;
+//       return true; // Even on error, allow clock-in
 //     }
 //   }
 //
-// // Fire and forget - never waits
-//   void _tryGetCoordinatesInBackground() async {
-//     try {
-//       debugPrint("🛰 Background GPS attempt started...");
+//   // 🎯 MAIN CLOCK-IN METHOD - WITH STRICT VALIDATION
+//   Future<void> saveFormAttendanceIn() async {
+//     debugPrint("🎯 CLOCK-IN STARTED WITH STRICT VALIDATION");
 //
-//       LocationViewModel locationVM = Get.find<LocationViewModel>();
-//
-//       // Try last known position first (with timeout)
-//       Position? lastPosition = await Geolocator.getLastKnownPosition()
-//           .timeout(Duration(seconds: 3), onTimeout: () {
-//         debugPrint("⏰ Last known position timeout");
-//         return null;
-//       });
-//
-//       if (lastPosition != null && lastPosition.latitude != 0.0) {
-//         debugPrint("📍 Background: Got last known coordinates");
-//         locationVM.globalLatitude1.value = lastPosition.latitude;
-//         locationVM.globalLongitude1.value = lastPosition.longitude;
-//         return;
-//       }
-//
-//       // Try current position (with timeout)
-//       Position position = await Geolocator.getCurrentPosition(
-//         desiredAccuracy: LocationAccuracy.low,
-//       ).timeout(Duration(seconds: 10), onTimeout: () {
-//         debugPrint("⏰ Current position timeout");
-//         throw TimeoutException("GPS timeout");
-//       });
-//
-//       debugPrint("📍 Background: Got current coordinates");
-//       locationVM.globalLatitude1.value = position.latitude;
-//       locationVM.globalLongitude1.value = position.longitude;
-//
-//     } catch (e) {
-//       debugPrint("⚠ Background GPS failed: $e");
-//       // No problem - we already clocked in with zeros
+//     // 1. Check if already clocked in
+//     if (isClockedIn.value) {
+//       Get.snackbar(
+//         'Already Clocked In',
+//         'You are already clocked in',
+//         snackPosition: SnackPosition.TOP,
+//         backgroundColor: Colors.green,
+//       );
+//       return;
 //     }
-//   }
 //
+//     // 2. QUICK location service check ONLY
+//     bool locationAvailable = await isLocationAvailable();
+//     if (!locationAvailable) {
+//       Get.snackbar(
+//         'Location Required',
+//         'Please turn on device location',
+//         backgroundColor: Colors.red,
+//       );
+//       return;
+//     }
 //
+//     debugPrint("✅ Location ON - CLOCKING IN NOW");
 //
-//   // Future<bool> isLocationAvailable() async {
-//   //   bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-//   //   if (!serviceEnabled) {
-//   //     _showLocationRequiredDialog();
-//   //     return false; // Block clock-in
-//   //   }
-//   //
-//   //   LocationPermission permission = await Geolocator.checkPermission();
-//   //   if (permission == LocationPermission.denied) {
-//   //     permission = await Geolocator.requestPermission();
-//   //   }
-//   //
-//   //   if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-//   //     _showLocationRequiredDialog();
-//   //     return false; // Block clock-in
-//   //   }
-//   //
-//   //   try {
-//   //     await Geolocator.getCurrentPosition(
-//   //       desiredAccuracy: LocationAccuracy.high,
-//   //     ).timeout(Duration(seconds: 5));
-//   //   } catch (e) {
-//   //     Get.snackbar(
-//   //       "Location Error",
-//   //       "Cannot determine your location. Please try again.",
-//   //       snackPosition: SnackPosition.TOP,
-//   //       backgroundColor: Colors.red,
-//   //       colorText: Colors.white,
-//   //     );
-//   //     return false; // Block clock-in if position can't be obtained
-//   //   }
-//   //
-//   //   return true; // ✅ Location available
-//   // }
+//     // 3. Generate attendance ID with STRICT validation
+//     await _loadCounter();
 //
-//   // Future<bool> isLocationAvailable() async {
-//   //   try {
-//   //     // bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-//   //     // if (!serviceEnabled) {
-//   //     //   debugPrint("❌ Location services disabled");
-//   //     //   _showLocationRequiredDialog();
-//   //     //   return false;
-//   //     // }
-//   //
-//   //     LocationPermission permission = await Geolocator.checkPermission();
-//   //     if (permission == LocationPermission.denied) {
-//   //       debugPrint("❌ Location permission denied");
-//   //       permission = await Geolocator.requestPermission();
-//   //       if (permission != LocationPermission.whileInUse &&
-//   //           permission != LocationPermission.always) {
-//   //         _showLocationRequiredDialog();
-//   //         return false;
-//   //       }
-//   //     } else if (permission == LocationPermission.deniedForever) {
-//   //       debugPrint("❌ Location permission permanently denied");
-//   //       _showLocationRequiredDialog();
-//   //       return false;
-//   //     }
-//   //
-//   //     try {
-//   //       Position position = await Geolocator.getCurrentPosition(
-//   //         desiredAccuracy: LocationAccuracy.high,
-//   //       ).timeout(Duration(seconds: 5));
-//   //
-//   //       if (position.latitude == 0.0 && position.longitude == 0.0) {
-//   //         debugPrint("❌ Invalid location coordinates");
-//   //         return false;
-//   //       }
-//   //
-//   //       debugPrint("✅ Location available: ${position.latitude}, ${position.longitude}");
-//   //       return true;
-//   //     } catch (e) {
-//   //       debugPrint("❌ Cannot get current position: $e");
-//   //       _showLocationRequiredDialog();
-//   //       return false;
-//   //     }
-//   //   } catch (e) {
-//   //     debugPrint("❌ Location check failed: $e");
-//   //     _showLocationRequiredDialog();
-//   //     return false;
-//   //   }
-//   // }
+//     // ✅ STRICT: Generate unique ID
+//     String attendanceId = await _generateStrictAttendanceId();
 //
+//     // ✅ STRICT: Check if this ID already exists
+//     bool alreadyExists = await _checkIfAttendanceAlreadyExists(attendanceId);
+//     if (alreadyExists) {
+//       // Regenerate with incremented serial
+//       attendanceInSerialCounter++;
+//       await _saveCounter();
+//       attendanceId = await _generateStrictAttendanceId();
+//       debugPrint("🔄 Regenerated new Attendance ID: $attendanceId");
+//     }
 //
-//   // LOCATION REQUIRED DIALOG
-//   void _showLocationRequiredDialog() {
-//     Get.dialog(
-//       WillPopScope(
-//         onWillPop: () async => false,
-//         child: AlertDialog(
-//           title: Text('Location Required', style: TextStyle(fontWeight: FontWeight.bold)),
-//           content: SingleChildScrollView(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               mainAxisSize: MainAxisSize.min,
-//               children: [
-//                 Text('For a better experience, your device will need to use Location Accuracy.', style: TextStyle(fontSize: 16)),
-//                 SizedBox(height: 16),
-//                 Text('The following settings should be on:', style: TextStyle(fontWeight: FontWeight.w600)),
-//                 SizedBox(height: 8),
-//                 Row(
-//                   children: [
-//                     Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-//                     SizedBox(width: 8),
-//                     Text('Device location'),
-//                   ],
-//                 ),
-//                 Row(
-//                   children: [
-//                     Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-//                     SizedBox(width: 8),
-//                     Text('Location Accuracy'),
-//                   ],
-//                 ),
-//                 SizedBox(height: 12),
-//                 Text('Location Accuracy provides more accurate location for apps and services.', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-//               ],
-//             ),
-//           ),
-//           actions: [
-//             Container(
-//               width: double.infinity,
-//               child: ElevatedButton(
-//                 onPressed: () async {
-//                   await Geolocator.openLocationSettings();
-//                   Get.back();
-//                 },
-//                 style: ElevatedButton.styleFrom(
-//                   backgroundColor: Colors.blue,
-//                   foregroundColor: Colors.white,
-//                 ),
-//                 child: Text('TURN ON'),
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//       barrierDismissible: false,
+//     // 4. INSTANTLY SET CLOCK-IN STATE
+//     _clockInTime = DateTime.now();
+//     isClockedIn.value = true;
+//     elapsedTime.value = '00:00:00';
+//     _startTimer();
+//
+//     // 5. SHOW SUCCESS IMMEDIATELY
+//     Get.snackbar(
+//       'Clock-In Successful',
+//       'You are now clocked in',
+//       backgroundColor: Colors.green,
 //     );
+//
+//     debugPrint("✅ CLOCK-IN COMPLETED WITH ID: $attendanceId");
+//
+//     // 6. BACKGROUND TASKS
+//     await _handleAllBackgroundTasks(attendanceId);
 //   }
+//
+//   // ✅ STRICT: Generate attendance ID with validation
+//   Future<String> _generateStrictAttendanceId() async {
+//     SharedPreferences prefs = await SharedPreferences.getInstance();
+//
+//     final DateTime now = DateTime.now();
+//     String currentMonth = DateFormat('MMM').format(DateTime.now());
+//     String currentDayNumber = DateFormat('dd').format(now);
+//     String today = DateFormat('yyyy-MM-dd').format(now);
+//
+//     // Get last generated day
+//     String lastGeneratedDay = prefs.getString('lastGeneratedAttendanceDay') ?? '';
+//
+//     // STRICT VALIDATION: If new day, reset counter
+//     if (lastGeneratedDay != today) {
+//       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+//       currentuserId = user_id;
+//       attendanceInCurrentMonth = currentMonth;
+//
+//       await prefs.setString('lastGeneratedAttendanceDay', today);
+//       debugPrint("🔄 New day - Counter reset to: $attendanceInSerialCounter");
+//     }
+//
+//     // STRICT VALIDATION: User ID change check
+//     if (currentuserId != user_id) {
+//       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+//       currentuserId = user_id;
+//       debugPrint("🔄 User changed - Counter reset to: $attendanceInSerialCounter");
+//     }
+//
+//     // STRICT VALIDATION: Month change check
+//     if (attendanceInCurrentMonth != currentMonth) {
+//       attendanceInSerialCounter = 1;
+//       attendanceInCurrentMonth = currentMonth;
+//       debugPrint("🔄 Month changed - Counter reset to: 1");
+//     }
+//
+//     // Generate ID
+//     String attendanceId = "ATD-$user_id-$currentDayNumber-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+//
+//     debugPrint("🆔 STRICT Attendance ID Generated:");
+//     debugPrint("   - ID: $attendanceId");
+//     debugPrint("   - User: $user_id");
+//     debugPrint("   - Day: $currentDayNumber");
+//     debugPrint("   - Month: $currentMonth");
+//     debugPrint("   - Serial: $attendanceInSerialCounter");
+//
+//     // Save the ID immediately
+//     await prefs.setString('currentAttendanceId', attendanceId);
+//     await prefs.setString('attendanceId', attendanceId);
+//
+//     return attendanceId;
+//   }
+//
+//   // ✅ STRICT: Check if attendance already exists
+//   Future<bool> _checkIfAttendanceAlreadyExists(String attendanceId) async {
+//     try {
+//       // Check local database first
+//       var allAttendance = await attendanceRepository.getAttendance();
+//
+//       bool existsInLocal = allAttendance.any((attendance) =>
+//       attendance.attendance_in_id == attendanceId);
+//
+//       if (existsInLocal) {
+//         debugPrint("⚠️ ATTENDANCE VALIDATION: ID $attendanceId already exists in local DB");
+//         return true;
+//       }
+//
+//       return false;
+//     } catch (e) {
+//       debugPrint("❌ Error checking attendance existence: $e");
+//       return false;
+//     }
+//   }
+//
+//   /// added code
+//   // 🛰 ALL BACKGROUND TASKS - WITH BLOCKING SYNC
+//   Future<void> _handleAllBackgroundTasks(String attendanceId) async {
+//     debugPrint("🛰 Starting background tasks with BLOCKING sync...");
+//
+//     try {
+//       // A. Save to SharedPreferences
+//       SharedPreferences prefs = await SharedPreferences.getInstance();
+//       await prefs.setString('clockInTime', _clockInTime!.toIso8601String());
+//       debugPrint("✅ Background: Saved to SharedPreferences");
+//
+//       // B. Already have attendanceId from parameter
+//       await prefs.remove('totalDistance');
+//       await prefs.setInt('secondsPassed', 0);
+//       debugPrint("✅ Background: Using attendance ID: $attendanceId");
+//
+//       // C. Save to local database
+//       addAttendance(
+//         AttendanceModel(
+//           attendance_in_id: attendanceId,
+//           user_id: user_id,
+//           city: userCity,
+//           booker_name: userName,
+//           lat_in: locationViewModel.globalLatitude1.value,
+//           lng_in: locationViewModel.globalLongitude1.value,
+//           designation: userDesignation,
+//           address: locationViewModel.shopAddress.value,
+//         ),
+//       );
+//       debugPrint("✅ Background: Saved to local database");
+//
+//       // D. ✅ BLOCKING SERVER SYNC (Like clock-out)
+//       debugPrint("🌐 [ATTENDANCE-IN] Starting BLOCKING server sync...");
+//
+//       final internetStatus = await _checkInternetSpeed().timeout(
+//         Duration(seconds: 3),
+//         onTimeout: () => 'none',
+//       );
+//
+//       if (internetStatus == 'fast') {
+//         debugPrint("🌐 [ATTENDANCE-IN] Calling postDataFromDatabaseToAPI with AWAIT");
+//         await attendanceRepository.postDataFromDatabaseToAPI(); // ✅ AWAIT COMPLETION
+//         debugPrint("✅ [ATTENDANCE-IN] BLOCKING server sync completed");
+//       } else {
+//         debugPrint("🌐 [ATTENDANCE-IN] No internet - will sync later");
+//       }
+//
+//     } catch (e) {
+//       debugPrint("⚠ Background tasks error: $e");
+//     }
+//   }
+//   // 🌐 SERVER SYNC - IMMEDIATE (LIKE CLOCK-OUT)
+//   void _tryServerSync() async {
+//     try {
+//       debugPrint("🌐 [ATTENDANCE-IN] Immediate server sync started");
+//
+//       // Quick internet check
+//       final internetStatus = await _checkInternetSpeed().timeout(
+//         Duration(seconds: 2),
+//         onTimeout: () => 'none',
+//       );
+//
+//       debugPrint("🌐 [ATTENDANCE-IN] Internet status: $internetStatus");
+//
+//       if (internetStatus == 'fast') {
+//         debugPrint("🌐 [ATTENDANCE-IN] Calling postDataFromDatabaseToAPI immediately");
+//         await attendanceRepository.postDataFromDatabaseToAPI(); // ✅ AWAIT COMPLETION
+//         debugPrint("✅ [ATTENDANCE-IN] Immediate server sync completed");
+//       } else {
+//         debugPrint("🌐 [ATTENDANCE-IN] No internet - skipping sync");
+//       }
+//     } catch (e) {
+//       debugPrint("⚠ [ATTENDANCE-IN] Immediate sync failed: $e");
+//       // Don't throw - data is saved locally
+//     }
+//   }
+//
+//
 //
 //   // --- TIMER METHODS ---
-//
 //   Future<void> _loadInitialClockState() async {
 //     SharedPreferences prefs = await SharedPreferences.getInstance();
-//     // Check if there is a saved clock-in time
-//     String? clockInTimeString = prefs.getString('clockInTime'); //
+//     String? clockInTimeString = prefs.getString('clockInTime');
 //
 //     if (clockInTimeString != null) {
-//       _clockInTime = DateTime.parse(clockInTimeString); //
-//       isClockedIn.value = true; //
-//       _startTimer(); // Resume the timer if clocked in
+//       _clockInTime = DateTime.parse(clockInTimeString);
+//       isClockedIn.value = true;
+//       _startTimer();
 //     }
 //   }
 //
 //   void _startTimer() {
 //     if (_clockInTime == null) return;
 //
-//     // Cancel any existing timer to prevent duplicates
-//     _timer?.cancel(); //
+//     _timer?.cancel();
 //
 //     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
 //       final now = DateTime.now();
-//       final duration = now.difference(_clockInTime!); // Calculate duration
+//       final duration = now.difference(_clockInTime!);
 //
-//       // Format the duration into H:mm:ss
 //       String twoDigits(int n) => n.toString().padLeft(2, '0');
 //       String hours = twoDigits(duration.inHours);
 //       String minutes = twoDigits(duration.inMinutes.remainder(60));
 //       String seconds = twoDigits(duration.inSeconds.remainder(60));
 //
-//       elapsedTime.value = '$hours:$minutes:$seconds'; // Update observable elapsed time
+//       elapsedTime.value = '$hours:$minutes:$seconds';
 //
-//       // Log every minute to verify timer is working
 //       if (duration.inSeconds % 60 == 0) {
 //         debugPrint("⏰ Attendance Timer: ${elapsedTime.value}");
 //       }
 //
-//       // Saving total time to preferences for use in clock-out
-//       _saveTotalTime(elapsedTime.value); //
+//       _saveTotalTime(elapsedTime.value);
 //     });
 //     debugPrint('✅ Attendance Timer started at: $_clockInTime');
 //   }
 //
 //   void _stopTimer() {
-//     _timer?.cancel(); //
+//     _timer?.cancel();
 //     _timer = null;
 //     debugPrint('🛑 Attendance Timer stopped');
 //   }
 //
-//   // Save total elapsed time for the AttendanceOutModel
 //   Future<void> _saveTotalTime(String time) async {
 //     SharedPreferences prefs = await SharedPreferences.getInstance();
-//     await prefs.setString('totalTime', time); //
+//     await prefs.setString('totalTime', time);
 //     debugPrint("✅ Saved total time to preferences: $time");
 //   }
 //
-//   // Clear clock-in state when clocking out (to be called by the Clock-Out button/logic)
+//   // ✅ UPDATED: Clear clock-in state with STRICT cleanup
 //   Future<void> clearClockInState() async {
-//     _stopTimer(); //
-//     isClockedIn.value = false; //
-//     _clockInTime = null; //
-//     elapsedTime.value = '00:00:00'; //
+//     _stopTimer();
+//     isClockedIn.value = false;
+//     _clockInTime = null;
+//     elapsedTime.value = '00:00:00';
+//
 //     SharedPreferences prefs = await SharedPreferences.getInstance();
-//     await prefs.remove('clockInTime'); //
-//     await prefs.remove('attendanceId'); // Clear ID for next session
-//     await prefs.remove('totalTime'); // Clear saved total time
-//     await prefs.remove('totalDistance'); // Clear distance
-//     await prefs.setInt('secondsPassed', 0); //
-//     debugPrint("🔄 Clock-in state cleared");
+//
+//     // STRICT CLEANUP: Remove all attendance-related data
+//     await prefs.remove('clockInTime');
+//     await prefs.remove('totalTime');
+//     await prefs.remove('totalDistance');
+//     await prefs.setInt('secondsPassed', 0);
+//
+//     // Keep attendanceId for clock-out matching but mark as used
+//     String? currentAttendanceId = prefs.getString('currentAttendanceId');
+//     if (currentAttendanceId != null) {
+//       await prefs.setString('usedAttendanceId', currentAttendanceId);
+//       await prefs.remove('currentAttendanceId');
+//     }
+//
+//     debugPrint("🔄 Clock-in state cleared completely");
 //   }
 //
-//   // ---------------------------------
-//
+//   // --- SERIAL NUMBER METHODS ---
 //   Future<void> _loadCounter() async {
 //     SharedPreferences prefs = await SharedPreferences.getInstance();
 //     String currentMonth = DateFormat('MMM').format(DateTime.now());
@@ -364,35 +781,7 @@
 //     await prefs.setString('currentuserId', currentuserId);
 //   }
 //
-//   String generateNewAttendanceId(String userId) {
-//     String currentMonth = DateFormat('MMM').format(DateTime.now());
-//
-//     // If user changes, start from last known highest serial
-//     if (currentuserId != userId) {
-//       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
-//       currentuserId = userId;
-//     }
-//
-//     // Month change — reset counter
-//     if (attendanceInCurrentMonth != currentMonth) {
-//       attendanceInSerialCounter = 1;
-//       attendanceInCurrentMonth = currentMonth;
-//     }
-//
-//     // Example: ATD-VT0043-Oct-001
-//     String attendanceId =
-//         "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
-//
-//     // Increment for next time
-//     attendanceInSerialCounter++;
-//     _saveCounter();
-//
-//     return attendanceId;
-//   }
-//
-//   // ***************************************************************
-//   // Internet Speed Check
-//   // ***************************************************************
+//   // --- INTERNET CHECK ---
 //   Future<String> _checkInternetSpeed() async {
 //     try {
 //       final response = await http.head(Uri.parse('https://www.google.com'))
@@ -413,167 +802,7 @@
 //     }
 //   }
 //
-//
-//   Future<void> saveFormAttendanceIn() async {
-//     if (isClockedIn.value) {
-//       Get.snackbar(
-//         'Already Clocked In',
-//         'You are already clocked in. Current duration: ${elapsedTime.value}',
-//         snackPosition: SnackPosition.TOP,
-//         backgroundColor: Colors.green,
-//         colorText: Colors.white,
-//       );
-//       return;
-//     }
-//
-//     // ✅ Check location before anything else
-//     bool locationAvailable = await isLocationAvailable();
-//     if (!locationAvailable) {
-//       debugPrint("❌ Clock-in blocked: Location not available");
-//       return; // Stop here, don't start timer
-//     }
-//
-//     // --- IMMEDIATELY SET CLOCK-IN STATE ---
-//     _clockInTime = DateTime.now();
-//     isClockedIn.value = true;
-//     elapsedTime.value = '00:00:00';
-//
-//     SharedPreferences prefs = await SharedPreferences.getInstance();
-//     await prefs.setString('clockInTime', _clockInTime!.toIso8601String());
-//     _startTimer();
-//
-//     Get.snackbar(
-//       'Clock-In Started',
-//       'Clock-in in progress...',
-//       snackPosition: SnackPosition.TOP,
-//       backgroundColor: Colors.green,
-//       colorText: Colors.white,
-//     );
-//
-//     // --- Continue with background tasks ---
-//     isLoading.value = true;
-//     try {
-//       final internetStatus = await _checkInternetSpeed();
-//       await _loadCounter();
-//       final attendanceId = generateNewAttendanceId(user_id);
-//       await prefs.setString('attendanceId', attendanceId);
-//       await prefs.remove('totalDistance');
-//       await prefs.setInt('secondsPassed', 0);
-//
-//       addAttendance(
-//         AttendanceModel(
-//           attendance_in_id: attendanceId,
-//           user_id: user_id,
-//           city: userCity,
-//           booker_name: userName,
-//           lat_in: locationViewModel.globalLatitude1.value,
-//           lng_in: locationViewModel.globalLongitude1.value,
-//           designation: userDesignation,
-//           address: locationViewModel.shopAddress.value,
-//         ),
-//       );
-//
-//       if (internetStatus == 'fast') {
-//         await attendanceRepository.postDataFromDatabaseToAPI();
-//       }
-//
-//       Get.snackbar(
-//         'Clock-In Successful',
-//         'You are now clocked in.',
-//         snackPosition: SnackPosition.TOP,
-//         backgroundColor: Colors.green,
-//         colorText: Colors.white,
-//       );
-//     } finally {
-//       isLoading.value = false;
-//     }
-//   }
-//
-//   // Future<void> saveFormAttendanceIn() async {
-//   //   isLoading.value = true;
-//   //
-//   //   try {
-//   //     // 1. Location Check
-//   //     bool locationAvailable = await isLocationAvailable();
-//   //     if (!locationAvailable) {
-//   //       debugPrint("❌ Clock-in blocked: Location not available");
-//   //       return;
-//   //     }
-//   //     debugPrint("✅ Location available, proceeding with clock-in");
-//   //
-//   //     // 2. Prevent double clock-in
-//   //     if (isClockedIn.value) {
-//   //       Get.snackbar('Already Clocked In', 'You are already clocked in. Current duration: ${elapsedTime.value}',
-//   //           snackPosition: SnackPosition.TOP, backgroundColor: Colors.orange, colorText: Colors.white);
-//   //       return;
-//   //     }
-//   //
-//   //     // 3. Internet Check
-//   //     final internetStatus = await _checkInternetSpeed();
-//   //
-//   //     if (internetStatus == 'none') {
-//   //       Get.snackbar(
-//   //         'Offline Mode',
-//   //         'No internet connection detected. Clocking in offline.',
-//   //         snackPosition: SnackPosition.TOP,
-//   //         backgroundColor: Colors.blue.shade500,
-//   //         colorText: Colors.white,
-//   //         duration: const Duration(seconds: 8),
-//   //       );
-//   //     }
-//   //
-//   //     // 4. Generate ID and Save State
-//   //     SharedPreferences prefs = await SharedPreferences.getInstance();
-//   //     await _loadCounter();
-//   //
-//   //     // **FIX: Explicitly clear distance here to ensure the new shift starts at 0**
-//   //     await prefs.remove('totalDistance');
-//   //     await prefs.setInt('secondsPassed', 0);
-//   //
-//   //     final attendanceId = generateNewAttendanceId(user_id);
-//   //     await prefs.setString('attendanceId', attendanceId);
-//   //
-//   //     // Set clock-in state and start timer
-//   //     _clockInTime = DateTime.now(); //
-//   //     isClockedIn.value = true; //
-//   //     await prefs.setString('clockInTime', _clockInTime!.toIso8601String()); //
-//   //     _startTimer(); //
-//   //
-//   //     // 5. Save to Local Database
-//   //     addAttendance(
-//   //       AttendanceModel(
-//   //         attendance_in_id: attendanceId,
-//   //         user_id: user_id,
-//   //         city: userCity,
-//   //         booker_name: userName,
-//   //         // Assuming globalLatitude1 and globalLongitude1 are updated by LocationViewModel after a successful check
-//   //         lat_in: locationViewModel.globalLatitude1.value,
-//   //         lng_in: locationViewModel.globalLongitude1.value,
-//   //         designation: userDesignation,
-//   //         address: locationViewModel.shopAddress.value,
-//   //       ),
-//   //     );
-//   //
-//   //     // 6. Post to API if internet is fast
-//   //     if (internetStatus == 'fast') {
-//   //       await attendanceRepository.postDataFromDatabaseToAPI();
-//   //     } else {
-//   //       debugPrint('Skipping API post. Internet status: $internetStatus');
-//   //     }
-//   //
-//   //     // 7. Success Notification
-//   //     Get.snackbar(
-//   //       'Clock-In Successful',
-//   //       'You are now clocked in.',
-//   //       snackPosition: SnackPosition.TOP,
-//   //       backgroundColor: Colors.green,
-//   //       colorText: Colors.white,
-//   //     );
-//   //   } finally {
-//   //     isLoading.value = false;
-//   //   }
-//   // }
-//
+//   // --- DATABASE METHODS ---
 //   Future<void> fetchAllAttendance() async {
 //     var attendance = await attendanceRepository.getAttendance();
 //     allAttendance.value = attendance;
@@ -597,1332 +826,13 @@
 //   Future<void> serialCounterGet() async {
 //     await attendanceRepository.serialNumberGeneratorApi();
 //   }
+//
+//   // ✅ ADDED: Get current attendance ID
+//   Future<String?> getCurrentAttendanceId() async {
+//     SharedPreferences prefs = await SharedPreferences.getInstance();
+//     return prefs.getString('currentAttendanceId');
+//   }
 // }
-//
-//
-//
-//
-//
-// // ///16-10-25  yh code bhi thik hai
-// // import 'dart:async';
-// // import 'dart:io';
-// // import 'package:http/http.dart' as http;
-// // import 'package:flutter/foundation.dart';
-// // import 'package:flutter/material.dart';
-// // import 'package:get/get.dart';
-// // import 'package:geolocator/geolocator.dart';
-// // import 'package:intl/intl.dart';
-// // import 'package:order_booking_app/Databases/util.dart';
-// // import 'package:order_booking_app/ViewModels/location_view_model.dart';
-// // import 'package:shared_preferences/shared_preferences.dart';
-// // import '../Models/attendance_Model.dart';
-// // import '../Repositories/attendance_repository.dart';
-// // import '../Services/FirebaseServices/firebase_remote_config.dart';
-// //
-// // class AttendanceViewModel extends GetxController {
-// //   var allAttendance = <AttendanceModel>[].obs;
-// //   final AttendanceRepository attendanceRepository = Get.put(AttendanceRepository());
-// //   final LocationViewModel locationViewModel = Get.put(LocationViewModel());
-// //
-// //   // --- TIMER AND STATE VARIABLES ---
-// //   var isClockedIn = false.obs; // Tracks if the user is currently clocked in
-// //   DateTime? _clockInTime; // Stores the actual clock-in DateTime
-// //   Timer? _timer; // The timer object
-// //   var elapsedTime = '00:00:00'.obs; // Display string for elapsed time
-// //   var isLoading = false.obs;
-// //   // ---------------------------------
-// //
-// //   int attendanceInSerialCounter = 1;
-// //   String attendanceInCurrentMonth = DateFormat('MMM').format(DateTime.now());
-// //   String currentuserId = '';
-// //
-// //   @override
-// //   void onInit() {
-// //     super.onInit();
-// //     fetchAllAttendance();
-// //     _loadInitialClockState(); // Load clock state on init
-// //   }
-// //
-// //   // Handle disposal of the timer
-// //   @override
-// //   void onClose() {
-// //     _stopTimer();
-// //     super.onClose();
-// //   }
-// //   Future<bool> isLocationAvailable() async {
-// //     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-// //     if (!serviceEnabled) {
-// //       _showLocationRequiredDialog();
-// //       return false; // Block clock-in
-// //     }
-// //
-// //     LocationPermission permission = await Geolocator.checkPermission();
-// //     if (permission == LocationPermission.denied) {
-// //       permission = await Geolocator.requestPermission();
-// //     }
-// //
-// //     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-// //       _showLocationRequiredDialog();
-// //       return false; // Block clock-in
-// //     }
-// //
-// //     try {
-// //       await Geolocator.getCurrentPosition(
-// //         desiredAccuracy: LocationAccuracy.high,
-// //       ).timeout(Duration(seconds: 5));
-// //     } catch (e) {
-// //       Get.snackbar(
-// //         "Location Error",
-// //         "Cannot determine your location. Please try again.",
-// //         snackPosition: SnackPosition.TOP,
-// //         backgroundColor: Colors.red,
-// //         colorText: Colors.white,
-// //       );
-// //       return false; // Block clock-in if position can't be obtained
-// //     }
-// //
-// //     return true; // ✅ Location available
-// //   }
-// //
-// //   // LOCATION CHECK METHOD
-// //   // Future<bool> isLocationAvailable() async {
-// //   //   try {
-// //   //     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-// //   //     if (!serviceEnabled) {
-// //   //       // ✅ Just warn the user, don’t block clock-in
-// //   //       Get.snackbar(
-// //   //         "Location Warning",
-// //   //         "Device location is off. Clocking in offline.",
-// //   //         snackPosition: SnackPosition.TOP,
-// //   //         backgroundColor: Colors.red,
-// //   //         colorText: Colors.white,
-// //   //         duration: const Duration(seconds: 5),
-// //   //       );
-// //   //       // ❌ Don't return false
-// //   //       serviceEnabled = false;
-// //   //     }
-// //   //
-// //   //     LocationPermission permission = await Geolocator.checkPermission();
-// //   //     if (permission == LocationPermission.denied) {
-// //   //       permission = await Geolocator.requestPermission();
-// //   //       if (permission != LocationPermission.whileInUse &&
-// //   //           permission != LocationPermission.always) {
-// //   //         // ✅ Just warn, don’t block
-// //   //         Get.snackbar(
-// //   //           "Location Warning",
-// //   //           "Location permission denied. Clocking in offline.",
-// //   //           snackPosition: SnackPosition.TOP,
-// //   //           backgroundColor: Colors.orange,
-// //   //           colorText: Colors.white,
-// //   //           duration: const Duration(seconds: 5),
-// //   //         );
-// //   //       }
-// //   //     } else if (permission == LocationPermission.deniedForever) {
-// //   //       Get.snackbar(
-// //   //         "Location Warning",
-// //   //         "Location permission permanently denied. Clocking in offline.",
-// //   //         snackPosition: SnackPosition.TOP,
-// //   //         backgroundColor: Colors.red,
-// //   //         colorText: Colors.white,
-// //   //         duration: const Duration(seconds: 5),
-// //   //       );
-// //   //     }
-// //   //
-// //   //     // Try to get position but ignore failure in offline mode
-// //   //     try {
-// //   //       Position position = await Geolocator.getCurrentPosition(
-// //   //         desiredAccuracy: LocationAccuracy.high,
-// //   //       ).timeout(Duration(seconds: 5));
-// //   //       debugPrint("✅ Location available: ${position.latitude}, ${position.longitude}");
-// //   //     } catch (e) {
-// //   //       debugPrint("⚠️ Cannot get precise location: $e");
-// //   //     }
-// //   //
-// //   //     return true; // ✅ Always return true for offline clock-in
-// //   //   } catch (e) {
-// //   //     debugPrint("⚠️ Location check failed: $e");
-// //   //     return true; // ✅ Always allow
-// //   //   }
-// //   // }
-// //
-// //
-// //
-// //   // LOCATION REQUIRED DIALOG
-// //   void _showLocationRequiredDialog() {
-// //     Get.dialog(
-// //       WillPopScope(
-// //         onWillPop: () async => false,
-// //         child: AlertDialog(
-// //           title: Text('Location Required', style: TextStyle(fontWeight: FontWeight.bold)),
-// //           content: SingleChildScrollView(
-// //             child: Column(
-// //               crossAxisAlignment: CrossAxisAlignment.start,
-// //               mainAxisSize: MainAxisSize.min,
-// //               children: [
-// //                 Text('For a better experience, your device will need to use Location Accuracy.', style: TextStyle(fontSize: 16)),
-// //                 SizedBox(height: 16),
-// //                 Text('The following settings should be on:', style: TextStyle(fontWeight: FontWeight.w600)),
-// //                 SizedBox(height: 8),
-// //                 Row(
-// //                   children: [
-// //                     Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-// //                     SizedBox(width: 8),
-// //                     Text('Device location'),
-// //                   ],
-// //                 ),
-// //                 Row(
-// //                   children: [
-// //                     Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-// //                     SizedBox(width: 8),
-// //                     Text('Location Accuracy'),
-// //                   ],
-// //                 ),
-// //                 SizedBox(height: 12),
-// //                 Text('Location Accuracy provides more accurate location for apps and services.', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-// //               ],
-// //             ),
-// //           ),
-// //           actions: [
-// //             Container(
-// //               width: double.infinity,
-// //               child: ElevatedButton(
-// //                 onPressed: () async {
-// //                   await Geolocator.openLocationSettings();
-// //                   Get.back();
-// //                 },
-// //                 style: ElevatedButton.styleFrom(
-// //                   backgroundColor: Colors.blue,
-// //                   foregroundColor: Colors.white,
-// //                 ),
-// //                 child: Text('TURN ON'),
-// //               ),
-// //             ),
-// //           ],
-// //         ),
-// //       ),
-// //       barrierDismissible: false,
-// //     );
-// //   }
-// //
-// //   // --- TIMER METHODS ---
-// //
-// //   Future<void> _loadInitialClockState() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     // Check if there is a saved clock-in time
-// //     String? clockInTimeString = prefs.getString('clockInTime'); //
-// //
-// //     if (clockInTimeString != null) {
-// //       _clockInTime = DateTime.parse(clockInTimeString); //
-// //       isClockedIn.value = true; //
-// //       _startTimer(); // Resume the timer if clocked in
-// //     }
-// //   }
-// //
-// //   void _startTimer() {
-// //     if (_clockInTime == null) return;
-// //
-// //     // Cancel any existing timer to prevent duplicates
-// //     _timer?.cancel(); //
-// //
-// //     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-// //       final now = DateTime.now();
-// //       final duration = now.difference(_clockInTime!); // Calculate duration
-// //
-// //       // Format the duration into H:mm:ss
-// //       String twoDigits(int n) => n.toString().padLeft(2, '0');
-// //       String hours = twoDigits(duration.inHours);
-// //       String minutes = twoDigits(duration.inMinutes.remainder(60));
-// //       String seconds = twoDigits(duration.inSeconds.remainder(60));
-// //
-// //       elapsedTime.value = '$hours:$minutes:$seconds'; // Update observable elapsed time
-// //
-// //       // Log every minute to verify timer is working
-// //       if (duration.inSeconds % 60 == 0) {
-// //         debugPrint("⏰ Attendance Timer: ${elapsedTime.value}");
-// //       }
-// //
-// //       // Saving total time to preferences for use in clock-out
-// //       _saveTotalTime(elapsedTime.value); //
-// //     });
-// //     debugPrint('✅ Attendance Timer started at: $_clockInTime');
-// //   }
-// //
-// //   void _stopTimer() {
-// //     _timer?.cancel(); //
-// //     _timer = null;
-// //     debugPrint('🛑 Attendance Timer stopped');
-// //   }
-// //
-// //   // Save total elapsed time for the AttendanceOutModel
-// //   Future<void> _saveTotalTime(String time) async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.setString('totalTime', time); //
-// //     debugPrint("✅ Saved total time to preferences: $time");
-// //   }
-// //
-// //   // Clear clock-in state when clocking out (to be called by the Clock-Out button/logic)
-// //   Future<void> clearClockInState() async {
-// //     _stopTimer(); //
-// //     isClockedIn.value = false; //
-// //     _clockInTime = null; //
-// //     elapsedTime.value = '00:00:00'; //
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.remove('clockInTime'); //
-// //     await prefs.remove('attendanceId'); // Clear ID for next session
-// //     await prefs.remove('totalTime'); // Clear saved total time
-// //     await prefs.remove('totalDistance'); // Clear distance
-// //     await prefs.setInt('secondsPassed', 0); //
-// //     debugPrint("🔄 Clock-in state cleared");
-// //   }
-// //
-// //   // ---------------------------------
-// //
-// //   Future<void> _loadCounter() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
-// //
-// //     attendanceInSerialCounter =
-// //         prefs.getInt('attendanceInSerialCounter') ?? (attendanceInHighestSerial ?? 1);
-// //     attendanceInCurrentMonth =
-// //         prefs.getString('attendanceInCurrentMonth') ?? currentMonth;
-// //     currentuserId = prefs.getString('currentuserId') ?? '';
-// //
-// //     if (attendanceInCurrentMonth != currentMonth) {
-// //       attendanceInSerialCounter = 1;
-// //       attendanceInCurrentMonth = currentMonth;
-// //     }
-// //
-// //     debugPrint('Loaded Serial Counter: $attendanceInSerialCounter');
-// //   }
-// //
-// //   Future<void> _saveCounter() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.setInt('attendanceInSerialCounter', attendanceInSerialCounter);
-// //     await prefs.setString('attendanceInCurrentMonth', attendanceInCurrentMonth);
-// //     await prefs.setString('currentuserId', currentuserId);
-// //   }
-// //
-// //   String generateNewAttendanceId(String userId) {
-// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
-// //
-// //     // If user changes, start from last known highest serial
-// //     if (currentuserId != userId) {
-// //       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
-// //       currentuserId = userId;
-// //     }
-// //
-// //     // Month change — reset counter
-// //     if (attendanceInCurrentMonth != currentMonth) {
-// //       attendanceInSerialCounter = 1;
-// //       attendanceInCurrentMonth = currentMonth;
-// //     }
-// //
-// //     // Example: ATD-VT0043-Oct-001
-// //     String attendanceId =
-// //         "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
-// //
-// //     // Increment for next time
-// //     attendanceInSerialCounter++;
-// //     _saveCounter();
-// //
-// //     return attendanceId;
-// //   }
-// //
-// //   // ***************************************************************
-// //   // Internet Speed Check
-// //   // ***************************************************************
-// //   Future<String> _checkInternetSpeed() async {
-// //     try {
-// //       final response = await http.head(Uri.parse('https://www.google.com'))
-// //           .timeout(const Duration(seconds: 3));
-// //
-// //       if (response.statusCode == 200) {
-// //         return 'fast';
-// //       } else {
-// //         return 'slow';
-// //       }
-// //     } on TimeoutException {
-// //       return 'slow';
-// //     } on SocketException {
-// //       return 'none';
-// //     } catch (e) {
-// //       debugPrint('Internet check failed: $e');
-// //       return 'none';
-// //     }
-// //   }
-// //   Future<void> saveFormAttendanceIn() async {
-// //     if (isClockedIn.value) {
-// //       Get.snackbar(
-// //         'Already Clocked In',
-// //         'You are already clocked in. Current duration: ${elapsedTime.value}',
-// //         snackPosition: SnackPosition.TOP,
-// //         backgroundColor: Colors.green,
-// //         colorText: Colors.white,
-// //       );
-// //       return;
-// //     }
-// //
-// //     // ✅ Check location before anything else
-// //     bool locationAvailable = await isLocationAvailable();
-// //     if (!locationAvailable) {
-// //       debugPrint("❌ Clock-in blocked: Location not available");
-// //       return; // Stop here, don't start timer
-// //     }
-// //
-// //     // --- IMMEDIATELY SET CLOCK-IN STATE ---
-// //     _clockInTime = DateTime.now();
-// //     isClockedIn.value = true;
-// //     elapsedTime.value = '00:00:00';
-// //
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.setString('clockInTime', _clockInTime!.toIso8601String());
-// //     _startTimer();
-// //
-// //     Get.snackbar(
-// //       'Clock-In Started',
-// //       'Clock-in in progress...',
-// //       snackPosition: SnackPosition.TOP,
-// //       backgroundColor: Colors.green,
-// //       colorText: Colors.white,
-// //     );
-// //
-// //     // --- Continue with background tasks ---
-// //     isLoading.value = true;
-// //     try {
-// //       final internetStatus = await _checkInternetSpeed();
-// //       await _loadCounter();
-// //       final attendanceId = generateNewAttendanceId(user_id);
-// //       await prefs.setString('attendanceId', attendanceId);
-// //       await prefs.remove('totalDistance');
-// //       await prefs.setInt('secondsPassed', 0);
-// //
-// //       addAttendance(
-// //         AttendanceModel(
-// //           attendance_in_id: attendanceId,
-// //           user_id: user_id,
-// //           city: userCity,
-// //           booker_name: userName,
-// //           lat_in: locationViewModel.globalLatitude1.value,
-// //           lng_in: locationViewModel.globalLongitude1.value,
-// //           designation: userDesignation,
-// //           address: locationViewModel.shopAddress.value,
-// //         ),
-// //       );
-// //
-// //       if (internetStatus == 'fast') {
-// //         await attendanceRepository.postDataFromDatabaseToAPI();
-// //       }
-// //
-// //       Get.snackbar(
-// //         'Clock-In Successful',
-// //         'You are now clocked in.',
-// //         snackPosition: SnackPosition.TOP,
-// //         backgroundColor: Colors.green,
-// //         colorText: Colors.white,
-// //       );
-// //     } finally {
-// //       isLoading.value = false;
-// //     }
-// //   }
-// //
-// //   // Future<void> saveFormAttendanceIn() async {
-// //   //   if (isClockedIn.value) {
-// //   //     Get.snackbar(
-// //   //       'Already Clocked In',
-// //   //       'You are already clocked in. Current duration: ${elapsedTime.value}',
-// //   //       snackPosition: SnackPosition.TOP,
-// //   //       backgroundColor: Colors.green,
-// //   //       colorText: Colors.white,
-// //   //     );
-// //   //     return;
-// //   //   }
-// //   //
-// //   //   // --- IMMEDIATELY SET CLOCK-IN STATE ---
-// //   //   _clockInTime = DateTime.now();
-// //   //   isClockedIn.value = true;
-// //   //   elapsedTime.value = '00:00:00';
-// //   //
-// //   //   SharedPreferences prefs = await SharedPreferences.getInstance();
-// //   //   await prefs.setString('clockInTime', _clockInTime!.toIso8601String());
-// //   //   _startTimer();
-// //   //
-// //   //   Get.snackbar(
-// //   //     'Clock-In Started',
-// //   //     'Clock-in in progress...',
-// //   //     snackPosition: SnackPosition.TOP,
-// //   //     backgroundColor: Colors.green,
-// //   //     colorText: Colors.white,
-// //   //   );
-// //   //
-// //   //   // --- DO BACKGROUND OPERATIONS WITHOUT BLOCKING UI ---
-// //   //   isLoading.value = true;
-// //   //   try {
-// //   //     // 1. Location (best effort)
-// //   //     await isLocationAvailable();
-// //   //
-// //   //     // 2. Internet check
-// //   //     final internetStatus = await _checkInternetSpeed();
-// //   //
-// //   //     // 3. Counter & attendance ID
-// //   //     await _loadCounter();
-// //   //     final attendanceId = generateNewAttendanceId(user_id);
-// //   //     await prefs.setString('attendanceId', attendanceId);
-// //   //     await prefs.remove('totalDistance');
-// //   //     await prefs.setInt('secondsPassed', 0);
-// //   //
-// //   //     // 4. Save to local DB
-// //   //     addAttendance(
-// //   //       AttendanceModel(
-// //   //         attendance_in_id: attendanceId,
-// //   //         user_id: user_id,
-// //   //         city: userCity,
-// //   //         booker_name: userName,
-// //   //         lat_in: locationViewModel.globalLatitude1.value,
-// //   //         lng_in: locationViewModel.globalLongitude1.value,
-// //   //         designation: userDesignation,
-// //   //         address: locationViewModel.shopAddress.value,
-// //   //       ),
-// //   //     );
-// //   //
-// //   //     // 5. Post to API if online
-// //   //     if (internetStatus == 'fast') {
-// //   //       await attendanceRepository.postDataFromDatabaseToAPI();
-// //   //     }
-// //   //
-// //   //     Get.snackbar(
-// //   //       'Clock-In Successful',
-// //   //       'You are now clocked in.',
-// //   //       snackPosition: SnackPosition.TOP,
-// //   //       backgroundColor: Colors.green,
-// //   //       colorText: Colors.white,
-// //   //     );
-// //   //   } finally {
-// //   //     isLoading.value = false;
-// //   //   }
-// //   // }
-// //
-// //
-// //   // Future<void> saveFormAttendanceIn() async {
-// //   //   isLoading.value = true;
-// //   //
-// //   //   try {
-// //   //     // 1. Location Check
-// //   //     bool locationAvailable = await isLocationAvailable();
-// //   //     if (!locationAvailable) {
-// //   //       debugPrint("❌ Clock-in blocked: Location not available");
-// //   //       return;
-// //   //     }
-// //   //     debugPrint("✅ Location available, proceeding with clock-in");
-// //   //
-// //   //     // 2. Prevent double clock-in
-// //   //     if (isClockedIn.value) {
-// //   //       Get.snackbar('Already Clocked In', 'You are already clocked in. Current duration: ${elapsedTime.value}',
-// //   //           snackPosition: SnackPosition.TOP, backgroundColor: Colors.orange, colorText: Colors.white);
-// //   //       return;
-// //   //     }
-// //   //
-// //   //     // 3. Internet Check
-// //   //     final internetStatus = await _checkInternetSpeed();
-// //   //
-// //   //     if (internetStatus == 'none') {
-// //   //       Get.snackbar(
-// //   //         'Offline Mode',
-// //   //         'No internet connection detected. Clocking in offline.',
-// //   //         snackPosition: SnackPosition.TOP,
-// //   //         backgroundColor: Colors.blue.shade500,
-// //   //         colorText: Colors.white,
-// //   //         duration: const Duration(seconds: 8),
-// //   //       );
-// //   //     }
-// //   //
-// //   //     // 4. Generate ID and Save State
-// //   //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //   //     await _loadCounter();
-// //   //
-// //   //     // **FIX: Explicitly clear distance here to ensure the new shift starts at 0**
-// //   //     await prefs.remove('totalDistance');
-// //   //     await prefs.setInt('secondsPassed', 0);
-// //   //
-// //   //     final attendanceId = generateNewAttendanceId(user_id);
-// //   //     await prefs.setString('attendanceId', attendanceId);
-// //   //
-// //   //     // Set clock-in state and start timer
-// //   //     _clockInTime = DateTime.now(); //
-// //   //     isClockedIn.value = true; //
-// //   //     await prefs.setString('clockInTime', _clockInTime!.toIso8601String()); //
-// //   //     _startTimer(); //
-// //   //
-// //   //     // 5. Save to Local Database
-// //   //     addAttendance(
-// //   //       AttendanceModel(
-// //   //         attendance_in_id: attendanceId,
-// //   //         user_id: user_id,
-// //   //         city: userCity,
-// //   //         booker_name: userName,
-// //   //         // Assuming globalLatitude1 and globalLongitude1 are updated by LocationViewModel after a successful check
-// //   //         lat_in: locationViewModel.globalLatitude1.value,
-// //   //         lng_in: locationViewModel.globalLongitude1.value,
-// //   //         designation: userDesignation,
-// //   //         address: locationViewModel.shopAddress.value,
-// //   //       ),
-// //   //     );
-// //   //
-// //   //     // 6. Post to API if internet is fast
-// //   //     if (internetStatus == 'fast') {
-// //   //       await attendanceRepository.postDataFromDatabaseToAPI();
-// //   //     } else {
-// //   //       debugPrint('Skipping API post. Internet status: $internetStatus');
-// //   //     }
-// //   //
-// //   //     // 7. Success Notification
-// //   //     Get.snackbar(
-// //   //       'Clock-In Successful',
-// //   //       'You are now clocked in.',
-// //   //       snackPosition: SnackPosition.TOP,
-// //   //       backgroundColor: Colors.green,
-// //   //       colorText: Colors.white,
-// //   //     );
-// //   //   } finally {
-// //   //     isLoading.value = false;
-// //   //   }
-// //   // }
-// //
-// //   Future<void> fetchAllAttendance() async {
-// //     var attendance = await attendanceRepository.getAttendance();
-// //     allAttendance.value = attendance;
-// //   }
-// //
-// //   void addAttendance(AttendanceModel attendanceModel) {
-// //     attendanceRepository.add(attendanceModel);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   void updateAttendance(AttendanceModel attendanceModel) {
-// //     attendanceRepository.update(attendanceModel);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   void deleteAttendance(String id) {
-// //     attendanceRepository.delete(id);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   Future<void> serialCounterGet() async {
-// //     await attendanceRepository.serialNumberGeneratorApi();
-// //   }
-// // }
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-// // import 'dart:async';
-// // import 'dart:io';
-// // import 'package:http/http.dart' as http;
-// // import 'package:flutter/foundation.dart';
-// // import 'package:flutter/material.dart';
-// // import 'package:get/get.dart';
-// // import 'package:intl/intl.dart';
-// // import 'package:order_booking_app/Databases/util.dart';
-// // import 'package:order_booking_app/ViewModels/location_view_model.dart';
-// // import 'package:shared_preferences/shared_preferences.dart';
-// // import '../Models/attendance_Model.dart';
-// // import '../Repositories/attendance_repository.dart';
-// // import '../Services/FirebaseServices/firebase_remote_config.dart';
-// //
-// // class AttendanceViewModel extends GetxController {
-// //   var allAttendance = <AttendanceModel>[].obs;
-// //   final AttendanceRepository attendanceRepository = Get.put(AttendanceRepository());
-// //   final LocationViewModel locationViewModel = Get.put(LocationViewModel());
-// //
-// //   // --- TIMER AND STATE VARIABLES ---
-// //   var isClockedIn = false.obs; // Tracks if the user is currently clocked in
-// //   DateTime? _clockInTime; // Stores the actual clock-in DateTime
-// //   Timer? _timer; // The timer object
-// //   var elapsedTime = '00:00:00'.obs; // Display string for elapsed time
-// //   // ---------------------------------
-// //
-// //   int attendanceInSerialCounter = 1;
-// //   String attendanceInCurrentMonth = DateFormat('MMM').format(DateTime.now());
-// //   String currentuserId = '';
-// //
-// //   @override
-// //   void onInit() {
-// //     super.onInit();
-// //     fetchAllAttendance();
-// //     _loadInitialClockState(); // Load clock state on init
-// //   }
-// //
-// //   // Handle disposal of the timer
-// //   @override
-// //   void onClose() {
-// //     _stopTimer();
-// //     super.onClose();
-// //   }
-// //
-// //   // --- TIMER METHODS ---
-// //
-// //   Future<void> _loadInitialClockState() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     // Check if there is a saved clock-in time
-// //     String? clockInTimeString = prefs.getString('clockInTime'); //
-// //
-// //     if (clockInTimeString != null) {
-// //       _clockInTime = DateTime.parse(clockInTimeString); //
-// //       isClockedIn.value = true; //
-// //       _startTimer(); // Resume the timer if clocked in
-// //     }
-// //   }
-// //
-// //   void _startTimer() {
-// //     if (_clockInTime == null) return;
-// //
-// //     // Cancel any existing timer to prevent duplicates
-// //     _timer?.cancel(); //
-// //
-// //     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-// //       final now = DateTime.now();
-// //       final duration = now.difference(_clockInTime!); // Calculate duration
-// //
-// //       // Format the duration into H:mm:ss
-// //       String twoDigits(int n) => n.toString().padLeft(2, '0');
-// //       String hours = twoDigits(duration.inHours);
-// //       String minutes = twoDigits(duration.inMinutes.remainder(60));
-// //       String seconds = twoDigits(duration.inSeconds.remainder(60));
-// //
-// //       elapsedTime.value = '$hours:$minutes:$seconds'; // Update observable elapsed time
-// //
-// //       // Saving total time to preferences for use in clock-out
-// //       _saveTotalTime(elapsedTime.value); //
-// //     });
-// //     debugPrint('Timer started.');
-// //   }
-// //
-// //   void _stopTimer() {
-// //     _timer?.cancel(); //
-// //     _timer = null;
-// //     debugPrint('Timer stopped.');
-// //   }
-// //
-// //   // Save total elapsed time for the AttendanceOutModel
-// //   Future<void> _saveTotalTime(String time) async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.setString('totalTime', time); //
-// //   }
-// //
-// //   // Clear clock-in state when clocking out (to be called by the Clock-Out button/logic)
-// //   Future<void> clearClockInState() async {
-// //     _stopTimer(); //
-// //     isClockedIn.value = false; //
-// //     _clockInTime = null; //
-// //     elapsedTime.value = '00:00:00'; //
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.remove('clockInTime'); //
-// //     await prefs.remove('attendanceId'); // Clear ID for next session
-// //     await prefs.remove('totalTime'); // Clear saved total time
-// //     await prefs.remove('totalDistance'); // Clear distance
-// //   }
-// //
-// //   // ---------------------------------
-// //
-// //   Future<void> _loadCounter() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
-// //
-// //     attendanceInSerialCounter =
-// //         prefs.getInt('attendanceInSerialCounter') ?? (attendanceInHighestSerial ?? 1);
-// //     attendanceInCurrentMonth =
-// //         prefs.getString('attendanceInCurrentMonth') ?? currentMonth;
-// //     currentuserId = prefs.getString('currentuserId') ?? '';
-// //
-// //     if (attendanceInCurrentMonth != currentMonth) {
-// //       attendanceInSerialCounter = 1;
-// //       attendanceInCurrentMonth = currentMonth;
-// //     }
-// //
-// //     debugPrint('Loaded Serial Counter: $attendanceInSerialCounter');
-// //   }
-// //
-// //   Future<void> _saveCounter() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.setInt('attendanceInSerialCounter', attendanceInSerialCounter);
-// //     await prefs.setString('attendanceInCurrentMonth', attendanceInCurrentMonth);
-// //     await prefs.setString('currentuserId', currentuserId);
-// //   }
-// //
-// //   String generateNewAttendanceId(String userId) {
-// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
-// //
-// //     // If user changes, start from last known highest serial
-// //     if (currentuserId != userId) {
-// //       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
-// //       currentuserId = userId;
-// //     }
-// //
-// //     // Month change — reset counter
-// //     if (attendanceInCurrentMonth != currentMonth) {
-// //       attendanceInSerialCounter = 1;
-// //       attendanceInCurrentMonth = currentMonth;
-// //     }
-// //
-// //     // Example: ATD-VT0043-Oct-001
-// //     String attendanceId =
-// //         "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
-// //
-// //     // Increment for next time
-// //     attendanceInSerialCounter++;
-// //     _saveCounter();
-// //
-// //     return attendanceId;
-// //   }
-// //
-// //   // ***************************************************************
-// //   // Internet Speed Check
-// //   // ***************************************************************
-// //   Future<String> _checkInternetSpeed() async {
-// //     try {
-// //       final response = await http.head(Uri.parse('https://www.google.com'))
-// //           .timeout(const Duration(seconds: 3));
-// //
-// //       if (response.statusCode == 200) {
-// //         return 'fast';
-// //       } else {
-// //         return 'slow';
-// //       }
-// //     } on TimeoutException {
-// //       return 'slow';
-// //     } on SocketException {
-// //       return 'none';
-// //     } catch (e) {
-// //       debugPrint('Internet check failed: $e');
-// //       return 'none';
-// //     }
-// //   }
-// //
-// //   Future<void> saveFormAttendanceIn() async {
-// //     // Prevent double clock-in
-// //     if (isClockedIn.value) {
-// //       Get.snackbar('Already Clocked In', 'You are already clocked in. Current duration: ${elapsedTime.value}',
-// //           snackPosition: SnackPosition.TOP, backgroundColor: Colors.orange, colorText: Colors.white);
-// //       return;
-// //     }
-// //
-// //     final internetStatus = await _checkInternetSpeed();
-// //
-// //     if (internetStatus == 'none') {
-// //       Get.snackbar(
-// //         'Offline Mode',
-// //         'No internet connection detected. Clocking in offline.',
-// //         snackPosition: SnackPosition.TOP,
-// //         backgroundColor: Colors.blue.shade500,
-// //         colorText: Colors.white,
-// //         duration: const Duration(seconds: 8),
-// //       );
-// //     } else if (internetStatus == 'slow') {
-// //       Get.snackbar(
-// //         'Internet Slow ⚠️',
-// //         'Your internet is slow. Please find a faster network or turn off internet to clock-in offline.',
-// //         snackPosition: SnackPosition.TOP,
-// //         backgroundColor: Colors.red,
-// //         colorText: Colors.white,
-// //         duration: const Duration(seconds: 10),
-// //       );
-// //       return;
-// //     }
-// //
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await _loadCounter();
-// //
-// //     final attendanceId = generateNewAttendanceId(user_id);
-// //     await prefs.setString('attendanceId', attendanceId);
-// //
-// //     // Set clock-in state and start timer
-// //     _clockInTime = DateTime.now(); //
-// //     isClockedIn.value = true; //
-// //     await prefs.setString('clockInTime', _clockInTime!.toIso8601String()); //
-// //     _startTimer(); //
-// //
-// //     addAttendance(
-// //       AttendanceModel(
-// //         attendance_in_id: attendanceId,
-// //         user_id: user_id,
-// //         city: userCity,
-// //         booker_name: userName,
-// //         lat_in: locationViewModel.globalLatitude1.value,
-// //         lng_in: locationViewModel.globalLongitude1.value,
-// //         designation: userDesignation,
-// //         address: locationViewModel.shopAddress.value,
-// //       ),
-// //     );
-// //
-// //     if (internetStatus == 'fast') {
-// //       await attendanceRepository.postDataFromDatabaseToAPI();
-// //     } else {
-// //       debugPrint('Skipping API post. Internet status: $internetStatus');
-// //     }
-// //
-// //     Get.snackbar(
-// //       'Clock-In Successful',
-// //       'You are now clocked in.',
-// //       snackPosition: SnackPosition.TOP,
-// //       backgroundColor: Colors.green,
-// //       colorText: Colors.white,
-// //     );
-// //   }
-// //
-// //   Future<void> fetchAllAttendance() async {
-// //     var attendance = await attendanceRepository.getAttendance();
-// //     allAttendance.value = attendance;
-// //   }
-// //
-// //   void addAttendance(AttendanceModel attendanceModel) {
-// //     attendanceRepository.add(attendanceModel);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   void updateAttendance(AttendanceModel attendanceModel) {
-// //     attendanceRepository.update(attendanceModel);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   void deleteAttendance(String id) {
-// //     attendanceRepository.delete(id);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   Future<void> serialCounterGet() async {
-// //     await attendanceRepository.serialNumberGeneratorApi();
-// //   }
-// // }
-// // attendance_view_model.dart
-//
-//
-//
-//
-// ///16-10-25
-// // import 'dart:async';
-// // import 'dart:io';
-// // import 'package:http/http.dart' as http;
-// // import 'package:flutter/foundation.dart';
-// // import 'package:flutter/material.dart';
-// // import 'package:get/get.dart';
-// // import 'package:geolocator/geolocator.dart'; // <--- Added from first block
-// // import 'package:intl/intl.dart';
-// // import 'package:order_booking_app/Databases/util.dart';
-// // import 'package:order_booking_app/ViewModels/location_view_model.dart';
-// // import 'package:shared_preferences/shared_preferences.dart';
-// // import '../Models/attendance_Model.dart';
-// // import '../Repositories/attendance_repository.dart';
-// // import '../Services/FirebaseServices/firebase_remote_config.dart';
-// //
-// // class AttendanceViewModel extends GetxController {
-// //   var allAttendance = <AttendanceModel>[].obs;
-// //   final AttendanceRepository attendanceRepository = Get.put(AttendanceRepository());
-// //   final LocationViewModel locationViewModel = Get.put(LocationViewModel());
-// //
-// //   // --- TIMER AND STATE VARIABLES ---
-// //   var isClockedIn = false.obs; // Tracks if the user is currently clocked in
-// //   DateTime? _clockInTime; // Stores the actual clock-in DateTime
-// //   Timer? _timer; // The timer object
-// //   var elapsedTime = '00:00:00'.obs; // Display string for elapsed time
-// //   var isLoading = false.obs; // <--- Added from first block
-// //   // ---------------------------------
-// //
-// //   int attendanceInSerialCounter = 1;
-// //   String attendanceInCurrentMonth = DateFormat('MMM').format(DateTime.now());
-// //   String currentuserId = '';
-// //
-// //   @override
-// //   void onInit() {
-// //     super.onInit();
-// //     fetchAllAttendance();
-// //     _loadInitialClockState(); // Load clock state on init
-// //   }
-// //
-// //   // Handle disposal of the timer
-// //   @override
-// //   void onClose() {
-// //     _stopTimer();
-// //     super.onClose();
-// //   }
-// //
-// //   // LOCATION CHECK METHOD <--- Added from first block
-// //   Future<bool> isLocationAvailable() async {
-// //     try {
-// //       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-// //       if (!serviceEnabled) {
-// //         debugPrint("❌ Location services disabled");
-// //         _showLocationRequiredDialog();
-// //         return false;
-// //       }
-// //
-// //       LocationPermission permission = await Geolocator.checkPermission();
-// //       if (permission == LocationPermission.denied) {
-// //         debugPrint("❌ Location permission denied");
-// //         permission = await Geolocator.requestPermission();
-// //         if (permission != LocationPermission.whileInUse &&
-// //             permission != LocationPermission.always) {
-// //           _showLocationRequiredDialog();
-// //           return false;
-// //         }
-// //       } else if (permission == LocationPermission.deniedForever) {
-// //         debugPrint("❌ Location permission permanently denied");
-// //         _showLocationRequiredDialog();
-// //         return false;
-// //       }
-// //
-// //       try {
-// //         Position position = await Geolocator.getCurrentPosition(
-// //           desiredAccuracy: LocationAccuracy.high,
-// //         ).timeout(Duration(seconds: 5));
-// //
-// //         if (position.latitude == 0.0 && position.longitude == 0.0) {
-// //           debugPrint("❌ Invalid location coordinates");
-// //           return false;
-// //         }
-// //
-// //         debugPrint("✅ Location available: ${position.latitude}, ${position.longitude}");
-// //         return true;
-// //       } catch (e) {
-// //         debugPrint("❌ Cannot get current position: $e");
-// //         _showLocationRequiredDialog();
-// //         return false;
-// //       }
-// //     } catch (e) {
-// //       debugPrint("❌ Location check failed: $e");
-// //       _showLocationRequiredDialog();
-// //       return false;
-// //     }
-// //   }
-// //
-// //   // LOCATION REQUIRED DIALOG <--- Added from first block
-// //   void _showLocationRequiredDialog() {
-// //     Get.dialog(
-// //       WillPopScope(
-// //         onWillPop: () async => false,
-// //         child: AlertDialog(
-// //           title: Text('Location Required', style: TextStyle(fontWeight: FontWeight.bold)),
-// //           content: SingleChildScrollView(
-// //             child: Column(
-// //               crossAxisAlignment: CrossAxisAlignment.start,
-// //               mainAxisSize: MainAxisSize.min,
-// //               children: [
-// //                 Text('For a better experience, your device will need to use Location Accuracy.', style: TextStyle(fontSize: 16)),
-// //                 SizedBox(height: 16),
-// //                 Text('The following settings should be on:', style: TextStyle(fontWeight: FontWeight.w600)),
-// //                 SizedBox(height: 8),
-// //                 Row(
-// //                   children: [
-// //                     Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-// //                     SizedBox(width: 8),
-// //                     Text('Device location'),
-// //                   ],
-// //                 ),
-// //                 Row(
-// //                   children: [
-// //                     Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-// //                     SizedBox(width: 8),
-// //                     Text('Location Accuracy'),
-// //                   ],
-// //                 ),
-// //                 SizedBox(height: 12),
-// //                 Text('Location Accuracy provides more accurate location for apps and services.', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-// //               ],
-// //             ),
-// //           ),
-// //           actions: [
-// //             Container(
-// //               width: double.infinity,
-// //               child: ElevatedButton(
-// //                 onPressed: () async {
-// //                   await Geolocator.openLocationSettings();
-// //                   Get.back();
-// //                 },
-// //                 style: ElevatedButton.styleFrom(
-// //                   backgroundColor: Colors.blue,
-// //                   foregroundColor: Colors.white,
-// //                 ),
-// //                 child: Text('TURN ON'),
-// //               ),
-// //             ),
-// //           ],
-// //         ),
-// //       ),
-// //       barrierDismissible: false,
-// //     );
-// //   }
-// //
-// //   // --- TIMER METHODS ---
-// //
-// //   Future<void> _loadInitialClockState() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     // Check if there is a saved clock-in time
-// //     String? clockInTimeString = prefs.getString('clockInTime'); //
-// //
-// //     if (clockInTimeString != null) {
-// //       _clockInTime = DateTime.parse(clockInTimeString); //
-// //       isClockedIn.value = true; //
-// //       _startTimer(); // Resume the timer if clocked in
-// //     }
-// //   }
-// //
-// //   void _startTimer() {
-// //     if (_clockInTime == null) return;
-// //
-// //     // Cancel any existing timer to prevent duplicates
-// //     _timer?.cancel(); //
-// //
-// //     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-// //       final now = DateTime.now();
-// //       final duration = now.difference(_clockInTime!); // Calculate duration
-// //
-// //       // Format the duration into H:mm:ss
-// //       String twoDigits(int n) => n.toString().padLeft(2, '0');
-// //       String hours = twoDigits(duration.inHours);
-// //       String minutes = twoDigits(duration.inMinutes.remainder(60));
-// //       String seconds = twoDigits(duration.inSeconds.remainder(60));
-// //
-// //       elapsedTime.value = '$hours:$minutes:$seconds'; // Update observable elapsed time
-// //
-// //       // Log every minute to verify timer is working
-// //       if (duration.inSeconds % 60 == 0) { // <--- Added log from first block
-// //         debugPrint("⏰ Attendance Timer: ${elapsedTime.value}");
-// //       }
-// //
-// //       // Saving total time to preferences for use in clock-out
-// //       _saveTotalTime(elapsedTime.value); //
-// //     });
-// //     debugPrint('✅ Attendance Timer started at: $_clockInTime'); // <--- Updated log
-// //   }
-// //
-// //   void _stopTimer() {
-// //     _timer?.cancel(); //
-// //     _timer = null;
-// //     debugPrint('🛑 Attendance Timer stopped'); // <--- Updated log
-// //   }
-// //
-// //   // Save total elapsed time for the AttendanceOutModel
-// //   Future<void> _saveTotalTime(String time) async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.setString('totalTime', time); //
-// //     debugPrint("✅ Saved total time to preferences: $time"); // <--- Added log
-// //   }
-// //
-// //   // Clear clock-in state when clocking out (to be called by the Clock-Out button/logic)
-// //   Future<void> clearClockInState() async {
-// //     _stopTimer(); //
-// //     isClockedIn.value = false; //
-// //     _clockInTime = null; //
-// //     elapsedTime.value = '00:00:00'; //
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.remove('clockInTime'); //
-// //     await prefs.remove('attendanceId'); // Clear ID for next session
-// //     await prefs.remove('totalTime'); // Clear saved total time
-// //     await prefs.remove('totalDistance'); // Clear distance
-// //     await prefs.setInt('secondsPassed', 0); // <--- Added from first block
-// //     debugPrint("🔄 Clock-in state cleared"); // <--- Added log
-// //   }
-// //
-// //   // ---------------------------------
-// //
-// //   Future<void> _loadCounter() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
-// //
-// //     attendanceInSerialCounter =
-// //         prefs.getInt('attendanceInSerialCounter') ?? (attendanceInHighestSerial ?? 1);
-// //     attendanceInCurrentMonth =
-// //         prefs.getString('attendanceInCurrentMonth') ?? currentMonth;
-// //     currentuserId = prefs.getString('currentuserId') ?? '';
-// //
-// //     if (attendanceInCurrentMonth != currentMonth) {
-// //       attendanceInSerialCounter = 1;
-// //       attendanceInCurrentMonth = currentMonth;
-// //     }
-// //
-// //     debugPrint('Loaded Serial Counter: $attendanceInSerialCounter');
-// //   }
-// //
-// //   Future<void> _saveCounter() async {
-// //     SharedPreferences prefs = await SharedPreferences.getInstance();
-// //     await prefs.setInt('attendanceInSerialCounter', attendanceInSerialCounter);
-// //     await prefs.setString('attendanceInCurrentMonth', attendanceInCurrentMonth);
-// //     await prefs.setString('currentuserId', currentuserId);
-// //   }
-// //
-// //   String generateNewAttendanceId(String userId) {
-// //     String currentMonth = DateFormat('MMM').format(DateTime.now());
-// //
-// //     // If user changes, start from last known highest serial
-// //     if (currentuserId != userId) {
-// //       attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
-// //       currentuserId = userId;
-// //     }
-// //
-// //     // Month change — reset counter
-// //     if (attendanceInCurrentMonth != currentMonth) {
-// //       attendanceInSerialCounter = 1;
-// //       attendanceInCurrentMonth = currentMonth;
-// //     }
-// //
-// //     // Example: ATD-VT0043-Oct-001
-// //     String attendanceId =
-// //         "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
-// //
-// //     // Increment for next time
-// //     attendanceInSerialCounter++;
-// //     _saveCounter();
-// //
-// //     return attendanceId;
-// //   }
-// //
-// //   // ***************************************************************
-// //   // Internet Speed Check
-// //   // ***************************************************************
-// //   Future<String> _checkInternetSpeed() async {
-// //     try {
-// //       final response = await http.head(Uri.parse('https://www.google.com'))
-// //           .timeout(const Duration(seconds: 3));
-// //
-// //       if (response.statusCode == 200) {
-// //         return 'fast';
-// //       } else {
-// //         return 'slow';
-// //       }
-// //     } on TimeoutException {
-// //       return 'slow';
-// //     } on SocketException {
-// //       return 'none';
-// //     } catch (e) {
-// //       debugPrint('Internet check failed: $e');
-// //       return 'none';
-// //     }
-// //   }
-// //
-// //   Future<void> saveFormAttendanceIn() async {
-// //     isLoading.value = true; // <--- Added from first block
-// //
-// //     try {
-// //       // 1. Location Check
-// //       bool locationAvailable = await isLocationAvailable(); // <--- Added from first block
-// //       if (!locationAvailable) {
-// //         debugPrint("❌ Clock-in blocked: Location not available"); // <--- Added from first block
-// //         return;
-// //       }
-// //       debugPrint("✅ Location available, proceeding with clock-in"); // <--- Added from first block
-// //
-// //       // 2. Prevent double clock-in
-// //       if (isClockedIn.value) {
-// //         Get.snackbar('Already Clocked In', 'You are already clocked in. Current duration: ${elapsedTime.value}',
-// //             snackPosition: SnackPosition.TOP, backgroundColor: Colors.orange, colorText: Colors.white);
-// //         return;
-// //       }
-// //
-// //       // 3. Internet Check
-// //       final internetStatus = await _checkInternetSpeed();
-// //
-// //       if (internetStatus == 'none') {
-// //         Get.snackbar(
-// //           'Offline Mode',
-// //           'No internet connection detected. Clocking in offline.',
-// //           snackPosition: SnackPosition.TOP,
-// //           backgroundColor: Colors.blue.shade500,
-// //           colorText: Colors.white,
-// //           duration: const Duration(seconds: 8),
-// //         );
-// //       } else if (internetStatus == 'slow') {
-// //         Get.snackbar(
-// //           'Internet Slow ⚠️',
-// //           'Your internet is slow. Please find a faster network or turn off internet to clock-in offline.',
-// //           snackPosition: SnackPosition.TOP,
-// //           backgroundColor: Colors.red,
-// //           colorText: Colors.white,
-// //           duration: const Duration(seconds: 10),
-// //         );
-// //         return;
-// //       }
-// //
-// //       // 4. Generate ID and Save State
-// //       SharedPreferences prefs = await SharedPreferences.getInstance();
-// //       await _loadCounter();
-// //
-// //       final attendanceId = generateNewAttendanceId(user_id);
-// //       await prefs.setString('attendanceId', attendanceId);
-// //
-// //       // Set clock-in state and start timer
-// //       _clockInTime = DateTime.now(); //
-// //       isClockedIn.value = true; //
-// //       await prefs.setString('clockInTime', _clockInTime!.toIso8601String()); //
-// //       _startTimer(); //
-// //
-// //       // 5. Save to Local Database
-// //       addAttendance(
-// //         AttendanceModel(
-// //           attendance_in_id: attendanceId,
-// //           user_id: user_id,
-// //           city: userCity,
-// //           booker_name: userName,
-// //           // Assuming globalLatitude1 and globalLongitude1 are updated by LocationViewModel after a successful check
-// //           lat_in: locationViewModel.globalLatitude1.value,
-// //           lng_in: locationViewModel.globalLongitude1.value,
-// //           designation: userDesignation,
-// //           address: locationViewModel.shopAddress.value,
-// //         ),
-// //       );
-// //
-// //       // 6. Post to API if internet is fast
-// //       if (internetStatus == 'fast') {
-// //         await attendanceRepository.postDataFromDatabaseToAPI();
-// //       } else {
-// //         debugPrint('Skipping API post. Internet status: $internetStatus');
-// //       }
-// //
-// //       // 7. Success Notification
-// //       Get.snackbar(
-// //         'Clock-In Successful',
-// //         'You are now clocked in.',
-// //         snackPosition: SnackPosition.TOP,
-// //         backgroundColor: Colors.green,
-// //         colorText: Colors.white,
-// //       );
-// //     } finally {
-// //       isLoading.value = false; // <--- Added from first block
-// //     }
-// //   }
-// //
-// //   Future<void> fetchAllAttendance() async {
-// //     var attendance = await attendanceRepository.getAttendance();
-// //     allAttendance.value = attendance;
-// //   }
-// //
-// //   void addAttendance(AttendanceModel attendanceModel) {
-// //     attendanceRepository.add(attendanceModel);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   void updateAttendance(AttendanceModel attendanceModel) {
-// //     attendanceRepository.update(attendanceModel);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   void deleteAttendance(String id) {
-// //     attendanceRepository.delete(id);
-// //     fetchAllAttendance();
-// //   }
-// //
-// //   Future<void> serialCounterGet() async {
-// //     await attendanceRepository.serialNumberGeneratorApi();
-// //   }
-// // }
-
-
 import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -1960,6 +870,7 @@ class AttendanceViewModel extends GetxController {
     super.onInit();
     fetchAllAttendance();
     _loadInitialClockState();
+    _initializeAttendanceCounter();
   }
 
   @override
@@ -1968,19 +879,45 @@ class AttendanceViewModel extends GetxController {
     super.onClose();
   }
 
+  // ✅ INITIALIZE COUNTER PROPERLY
+  Future<void> _initializeAttendanceCounter() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // Check if new day
+    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    String lastProcessedDay = prefs.getString('lastAttendanceDay') ?? '';
+
+    if (lastProcessedDay != today) {
+      // New day, reset counter to highest serial from server
+      attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+      attendanceInCurrentMonth = DateFormat('MMM').format(DateTime.now());
+      currentuserId = user_id;
+
+      await prefs.setInt('attendanceInSerialCounter', attendanceInSerialCounter);
+      await prefs.setString('attendanceInCurrentMonth', attendanceInCurrentMonth);
+      await prefs.setString('currentuserId', currentuserId);
+      await prefs.setString('lastAttendanceDay', today);
+
+      debugPrint("🔄 [ATTENDANCE] New day detected - Counter initialized to: $attendanceInSerialCounter");
+    } else {
+      // Load existing counter
+      await _loadCounter();
+    }
+  }
+
   // 🎯 SIMPLE LOCATION CHECK - ONLY CHECKS IF SERVICE IS ENABLED
   Future<bool> isLocationAvailable() async {
     try {
       bool isLocationEnabled = await Geolocator.isLocationServiceEnabled();
-      return isLocationEnabled; // Simple true/false
+      return isLocationEnabled;
     } catch (e) {
       return true; // Even on error, allow clock-in
     }
   }
 
-  // 🎯 MAIN CLOCK-IN METHOD - INSTANT SUCCESS
+  // 🎯 MAIN CLOCK-IN METHOD - WITH STRICT VALIDATION
   Future<void> saveFormAttendanceIn() async {
-    debugPrint("🎯 CLOCK-IN STARTED");
+    debugPrint("🎯 [ATTENDANCE] ===== CLOCK-IN STARTED =====");
 
     // 1. Check if already clocked in
     if (isClockedIn.value) {
@@ -2004,90 +941,135 @@ class AttendanceViewModel extends GetxController {
       return;
     }
 
-    debugPrint("✅ Location ON - CLOCKING IN NOW");
+    debugPrint("✅ [ATTENDANCE] Location ON - CLOCKING IN NOW");
 
-    // 3. INSTANTLY SET CLOCK-IN STATE (NO AWAIT)
+    // 3. Generate attendance ID with STRICT validation
+    await _loadCounter();
+
+    // ✅ STRICT: Generate unique ID
+    String attendanceId = await _generateStrictAttendanceId();
+
+    // ✅ STRICT: Check if this ID already exists
+    bool alreadyExists = await _checkIfAttendanceAlreadyExists(attendanceId);
+    if (alreadyExists) {
+      // Regenerate with incremented serial
+      attendanceInSerialCounter++;
+      await _saveCounter();
+      attendanceId = await _generateStrictAttendanceId();
+      debugPrint("🔄 [ATTENDANCE] Regenerated new Attendance ID: $attendanceId");
+    }
+
+    // 4. INSTANTLY SET CLOCK-IN STATE
     _clockInTime = DateTime.now();
     isClockedIn.value = true;
     elapsedTime.value = '00:00:00';
     _startTimer();
 
-    // 4. SHOW SUCCESS IMMEDIATELY
+    // 5. SHOW SUCCESS IMMEDIATELY
     Get.snackbar(
       'Clock-In Successful',
       'You are now clocked in',
       backgroundColor: Colors.green,
     );
 
-    debugPrint("✅ CLOCK-IN COMPLETED - USER SEES SUCCESS");
+    debugPrint("✅ [ATTENDANCE] CLOCK-IN COMPLETED WITH ID: $attendanceId");
 
-    // 5. BACKGROUND TASKS - FIRE AND FORGET (NO AWAIT)
-    // _handleAllBackgroundTasks();
-    await _handleAllBackgroundTasks(); // ✅ ADD AWAIT
+    // 6. BACKGROUND TASKS
+    await _handleAllBackgroundTasks(attendanceId);
   }
 
-  // 🛰 ALL BACKGROUND TASKS - COMPLETELY NON-BLOCKING
-  ///old code
-  // void _handleAllBackgroundTasks() async {
-  //   debugPrint("🛰 Starting background tasks...");
-  //
-  //   try {
-  //     // A. Save to SharedPreferences
-  //     SharedPreferences prefs = await SharedPreferences.getInstance();
-  //     await prefs.setString('clockInTime', _clockInTime!.toIso8601String());
-  //     debugPrint("✅ Background: Saved to SharedPreferences");
-  //
-  //     // B. Generate attendance data
-  //     await _loadCounter();
-  //     final attendanceId = generateNewAttendanceId(user_id);
-  //     await prefs.setString('attendanceId', attendanceId);
-  //     await prefs.remove('totalDistance');
-  //     await prefs.setInt('secondsPassed', 0);
-  //     debugPrint("✅ Background: Generated attendance ID: $attendanceId");
-  //
-  //     // C. Save to local database
-  //     addAttendance(
-  //       AttendanceModel(
-  //         attendance_in_id: attendanceId,
-  //         user_id: user_id,
-  //         city: userCity,
-  //         booker_name: userName,
-  //         lat_in: locationViewModel.globalLatitude1.value, // Could be 0.0
-  //         lng_in: locationViewModel.globalLongitude1.value, // Could be 0.0
-  //         designation: userDesignation,
-  //         address: locationViewModel.shopAddress.value,
-  //       ),
-  //     );
-  //     debugPrint("✅ Background: Saved to local database");
-  //
-  //     // D. Try server sync if internet available
-  //     _tryServerSync();
-  //
-  //   } catch (e) {
-  //     debugPrint("⚠ Background tasks error: $e");
-  //   }
-  // }
+  // ✅ STRICT: Generate attendance ID with validation
+  Future<String> _generateStrictAttendanceId() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  // 🌐 SERVER SYNC - FIRE AND FORGET
+    final DateTime now = DateTime.now();
+    String currentMonth = DateFormat('MMM').format(DateTime.now());
+    String currentDayNumber = DateFormat('dd').format(now);
+    String today = DateFormat('yyyy-MM-dd').format(now);
 
-  /// added code
-  // 🛰 ALL BACKGROUND TASKS - WITH BLOCKING SYNC
-  Future<void> _handleAllBackgroundTasks() async { // ✅ CHANGE: void → Future<void>
-    debugPrint("🛰 Starting background tasks with BLOCKING sync...");
+    // Get last generated day
+    String lastGeneratedDay = prefs.getString('lastGeneratedAttendanceDay') ?? '';
+
+    // STRICT VALIDATION: If new day, reset counter
+    if (lastGeneratedDay != today) {
+      attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+      currentuserId = user_id;
+      attendanceInCurrentMonth = currentMonth;
+
+      await prefs.setString('lastGeneratedAttendanceDay', today);
+      debugPrint("🔄 [ATTENDANCE] New day - Counter reset to: $attendanceInSerialCounter");
+    }
+
+    // STRICT VALIDATION: User ID change check
+    if (currentuserId != user_id) {
+      attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
+      currentuserId = user_id;
+      debugPrint("🔄 [ATTENDANCE] User changed - Counter reset to: $attendanceInSerialCounter");
+    }
+
+    // STRICT VALIDATION: Month change check
+    if (attendanceInCurrentMonth != currentMonth) {
+      attendanceInSerialCounter = 1;
+      attendanceInCurrentMonth = currentMonth;
+      debugPrint("🔄 [ATTENDANCE] Month changed - Counter reset to: 1");
+    }
+
+    // Generate ID
+    String attendanceId = "ATD-$user_id-$currentDayNumber-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
+
+    debugPrint("🆔 [ATTENDANCE] STRICT Attendance ID Generated:");
+    debugPrint("   - ID: $attendanceId");
+    debugPrint("   - User: $user_id");
+    debugPrint("   - Day: $currentDayNumber");
+    debugPrint("   - Month: $currentMonth");
+    debugPrint("   - Serial: $attendanceInSerialCounter");
+
+    // Save the ID immediately
+    await prefs.setString('currentAttendanceId', attendanceId);
+    await prefs.setString('attendanceId', attendanceId);
+    await prefs.setString('clockInAttendanceId', attendanceId); // Extra backup
+
+    // Mark this serial as used for today
+    await prefs.setInt('usedSerial_${attendanceInSerialCounter}_$today', 1);
+
+    return attendanceId;
+  }
+
+  // ✅ STRICT: Check if attendance already exists
+  Future<bool> _checkIfAttendanceAlreadyExists(String attendanceId) async {
+    try {
+      // Check local database first
+      var allAttendance = await attendanceRepository.getAttendance();
+
+      bool existsInLocal = allAttendance.any((attendance) =>
+      attendance.attendance_in_id == attendanceId);
+
+      if (existsInLocal) {
+        debugPrint("⚠️ [ATTENDANCE] VALIDATION: ID $attendanceId already exists in local DB");
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint("❌ [ATTENDANCE] Error checking attendance existence: $e");
+      return false;
+    }
+  }
+
+  /// 🛰 ALL BACKGROUND TASKS - WITH BLOCKING SYNC
+  Future<void> _handleAllBackgroundTasks(String attendanceId) async {
+    debugPrint("🛰 [ATTENDANCE] Starting background tasks...");
 
     try {
       // A. Save to SharedPreferences
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('clockInTime', _clockInTime!.toIso8601String());
-      debugPrint("✅ Background: Saved to SharedPreferences");
+      debugPrint("✅ [ATTENDANCE] Background: Saved to SharedPreferences");
 
-      // B. Generate attendance data
-      await _loadCounter();
-      final attendanceId = generateNewAttendanceId(user_id);
-      await prefs.setString('attendanceId', attendanceId);
+      // B. Already have attendanceId from parameter
       await prefs.remove('totalDistance');
       await prefs.setInt('secondsPassed', 0);
-      debugPrint("✅ Background: Generated attendance ID: $attendanceId");
+      debugPrint("✅ [ATTENDANCE] Background: Using attendance ID: $attendanceId");
 
       // C. Save to local database
       addAttendance(
@@ -2102,10 +1084,10 @@ class AttendanceViewModel extends GetxController {
           address: locationViewModel.shopAddress.value,
         ),
       );
-      debugPrint("✅ Background: Saved to local database");
+      debugPrint("✅ [ATTENDANCE] Background: Saved to local database");
 
-      // D. ✅ BLOCKING SERVER SYNC (Like clock-out)
-      debugPrint("🌐 [ATTENDANCE-IN] Starting BLOCKING server sync...");
+      // D. ✅ BLOCKING SERVER SYNC
+      debugPrint("🌐 [ATTENDANCE] Starting server sync...");
 
       final internetStatus = await _checkInternetSpeed().timeout(
         Duration(seconds: 3),
@@ -2113,43 +1095,22 @@ class AttendanceViewModel extends GetxController {
       );
 
       if (internetStatus == 'fast') {
-        debugPrint("🌐 [ATTENDANCE-IN] Calling postDataFromDatabaseToAPI with AWAIT");
-        await attendanceRepository.postDataFromDatabaseToAPI(); // ✅ AWAIT COMPLETION
-        debugPrint("✅ [ATTENDANCE-IN] BLOCKING server sync completed");
+        debugPrint("🌐 [ATTENDANCE] Calling postDataFromDatabaseToAPI");
+        await attendanceRepository.postDataFromDatabaseToAPI();
+        debugPrint("✅ [ATTENDANCE] Server sync completed");
       } else {
-        debugPrint("🌐 [ATTENDANCE-IN] No internet - will sync later");
+        debugPrint("🌐 [ATTENDANCE] No internet - will sync later");
       }
 
     } catch (e) {
-      debugPrint("⚠ Background tasks error: $e");
+      debugPrint("⚠ [ATTENDANCE] Background tasks error: $e");
     }
   }
-  ///coredted
-  // void _tryServerSync() async {
-  //   try {
-  //     debugPrint("🌐 Trying server sync...");
-  //
-  //     // Quick internet check
-  //     final internetStatus = await _checkInternetSpeed().timeout(
-  //       Duration(seconds: 2),
-  //       onTimeout: () => 'none',
-  //     );
-  //
-  //     if (internetStatus == 'fast') {
-  //       await attendanceRepository.postDataFromDatabaseToAPI();
-  //       debugPrint("✅ Background: Server sync completed");
-  //     } else {
-  //       debugPrint("🌐 No internet - skipping server sync");
-  //     }
-  //   } catch (e) {
-  //     debugPrint("⚠ Server sync failed: $e");
-  //   }
-  // }
 
   // 🌐 SERVER SYNC - IMMEDIATE (LIKE CLOCK-OUT)
   void _tryServerSync() async {
     try {
-      debugPrint("🌐 [ATTENDANCE-IN] Immediate server sync started");
+      debugPrint("🌐 [ATTENDANCE] Immediate server sync started");
 
       // Quick internet check
       final internetStatus = await _checkInternetSpeed().timeout(
@@ -2157,22 +1118,19 @@ class AttendanceViewModel extends GetxController {
         onTimeout: () => 'none',
       );
 
-      debugPrint("🌐 [ATTENDANCE-IN] Internet status: $internetStatus");
+      debugPrint("🌐 [ATTENDANCE] Internet status: $internetStatus");
 
       if (internetStatus == 'fast') {
-        debugPrint("🌐 [ATTENDANCE-IN] Calling postDataFromDatabaseToAPI immediately");
-        await attendanceRepository.postDataFromDatabaseToAPI(); // ✅ AWAIT COMPLETION
-        debugPrint("✅ [ATTENDANCE-IN] Immediate server sync completed");
+        debugPrint("🌐 [ATTENDANCE] Calling postDataFromDatabaseToAPI immediately");
+        await attendanceRepository.postDataFromDatabaseToAPI();
+        debugPrint("✅ [ATTENDANCE] Immediate server sync completed");
       } else {
-        debugPrint("🌐 [ATTENDANCE-IN] No internet - skipping sync");
+        debugPrint("🌐 [ATTENDANCE] No internet - skipping sync");
       }
     } catch (e) {
-      debugPrint("⚠ [ATTENDANCE-IN] Immediate sync failed: $e");
-      // Don't throw - data is saved locally
+      debugPrint("⚠ [ATTENDANCE] Immediate sync failed: $e");
     }
   }
-
-
 
   // --- TIMER METHODS ---
   Future<void> _loadInitialClockState() async {
@@ -2203,38 +1161,49 @@ class AttendanceViewModel extends GetxController {
       elapsedTime.value = '$hours:$minutes:$seconds';
 
       if (duration.inSeconds % 60 == 0) {
-        debugPrint("⏰ Attendance Timer: ${elapsedTime.value}");
+        debugPrint("⏰ [ATTENDANCE] Timer: ${elapsedTime.value}");
       }
 
       _saveTotalTime(elapsedTime.value);
     });
-    debugPrint('✅ Attendance Timer started at: $_clockInTime');
+    debugPrint('✅ [ATTENDANCE] Timer started at: $_clockInTime');
   }
 
   void _stopTimer() {
     _timer?.cancel();
     _timer = null;
-    debugPrint('🛑 Attendance Timer stopped');
+    debugPrint('🛑 [ATTENDANCE] Timer stopped');
   }
 
   Future<void> _saveTotalTime(String time) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('totalTime', time);
-    debugPrint("✅ Saved total time to preferences: $time");
+    debugPrint("✅ [ATTENDANCE] Saved total time to preferences: $time");
   }
 
+  // ✅ UPDATED: Clear clock-in state with STRICT cleanup
   Future<void> clearClockInState() async {
     _stopTimer();
     isClockedIn.value = false;
     _clockInTime = null;
     elapsedTime.value = '00:00:00';
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // STRICT CLEANUP: Remove all attendance-related data
     await prefs.remove('clockInTime');
-    await prefs.remove('attendanceId');
     await prefs.remove('totalTime');
     await prefs.remove('totalDistance');
     await prefs.setInt('secondsPassed', 0);
-    debugPrint("🔄 Clock-in state cleared");
+
+    // Keep attendanceId for clock-out matching but mark as used
+    String? currentAttendanceId = prefs.getString('currentAttendanceId');
+    if (currentAttendanceId != null) {
+      await prefs.setString('usedAttendanceId', currentAttendanceId);
+      await prefs.remove('currentAttendanceId');
+    }
+
+    debugPrint("🔄 [ATTENDANCE] Clock-in state cleared completely");
   }
 
   // --- SERIAL NUMBER METHODS ---
@@ -2253,7 +1222,7 @@ class AttendanceViewModel extends GetxController {
       attendanceInCurrentMonth = currentMonth;
     }
 
-    debugPrint('Loaded Serial Counter: $attendanceInSerialCounter');
+    debugPrint('[ATTENDANCE] Loaded Serial Counter: $attendanceInSerialCounter');
   }
 
   Future<void> _saveCounter() async {
@@ -2261,42 +1230,6 @@ class AttendanceViewModel extends GetxController {
     await prefs.setInt('attendanceInSerialCounter', attendanceInSerialCounter);
     await prefs.setString('attendanceInCurrentMonth', attendanceInCurrentMonth);
     await prefs.setString('currentuserId', currentuserId);
-  }
-
-  String generateNewAttendanceId(String userId) {
-    // 👇 yahan define kar rahe hain current DateTime
-    final DateTime now = DateTime.now(); ///
-
-    String currentMonth = DateFormat('MMM').format(DateTime.now());
-    ///
-    String currentDayNumber = DateFormat('dd').format(now); // 28 ///
-    // String currentDayName = DateFormat('E').format(now); // Thu ///
-
-
-
-    if (currentuserId != userId) {
-      attendanceInSerialCounter = attendanceInHighestSerial ?? 1;
-      currentuserId = userId;
-    }
-
-    if (attendanceInCurrentMonth != currentMonth) {
-      attendanceInSerialCounter = 1;
-      attendanceInCurrentMonth = currentMonth;
-    }
-    // String attendanceId =
-    //     "ATD-$userId-$currentMonth-$currentDayNumber-$currentDayName-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
-    String attendanceId =
-        "ATD-$userId-$currentDayNumber-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
-
-    debugPrint("🆔 Generated Attendance ID: $attendanceId");
-
-    // String attendanceId =
-    //     "ATD-$userId-$currentMonth-${attendanceInSerialCounter.toString().padLeft(3, '0')}";
-
-    attendanceInSerialCounter++;
-    _saveCounter();
-
-    return attendanceId;
   }
 
   // --- INTERNET CHECK ---
@@ -2315,7 +1248,7 @@ class AttendanceViewModel extends GetxController {
     } on SocketException {
       return 'none';
     } catch (e) {
-      debugPrint('Internet check failed: $e');
+      debugPrint('[ATTENDANCE] Internet check failed: $e');
       return 'none';
     }
   }
@@ -2343,5 +1276,133 @@ class AttendanceViewModel extends GetxController {
 
   Future<void> serialCounterGet() async {
     await attendanceRepository.serialNumberGeneratorApi();
+  }
+
+  // ✅ ADDED: Get current attendance ID
+  Future<String?> getCurrentAttendanceId() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('currentAttendanceId') ??
+        prefs.getString('attendanceId') ??
+        prefs.getString('clockInAttendanceId');
+  }
+
+  // ✅ FIXED: Clean duplicate attendance records (NO ID PROPERTY)
+  Future<void> cleanDuplicateRecords() async {
+    try {
+      var allRecords = await attendanceRepository.getAttendance();
+      Set<String> uniqueIds = {};
+      List<String> duplicateIds = [];
+
+      // Find duplicates
+      for (var record in allRecords) {
+        String recordId = record.attendance_in_id?.toString() ?? '';
+        if (recordId.isNotEmpty) {
+          if (uniqueIds.contains(recordId)) {
+            duplicateIds.add(recordId);
+          } else {
+            uniqueIds.add(recordId);
+          }
+        }
+      }
+
+      // Remove duplicates
+      for (String duplicateId in duplicateIds) {
+        debugPrint("🗑️ [ATTENDANCE] Removing duplicate record: $duplicateId");
+
+        // Get all records with this ID
+        var duplicates = allRecords.where((r) => r.attendance_in_id == duplicateId).toList();
+
+        if (duplicates.length > 1) {
+          // Keep first, delete rest
+          for (int i = 1; i < duplicates.length; i++) {
+            // Delete by attendance_in_id (not id property)
+            await attendanceRepository.delete(duplicateId);
+          }
+          debugPrint("✅ [ATTENDANCE] Removed ${duplicates.length - 1} duplicates for ID: $duplicateId");
+        }
+      }
+
+      if (duplicateIds.isNotEmpty) {
+        debugPrint("✅ [ATTENDANCE] Cleaned ${duplicateIds.length} duplicate attendance IDs");
+        // Refresh the list
+        fetchAllAttendance();
+      } else {
+        debugPrint("✅ [ATTENDANCE] No duplicate records found");
+      }
+    } catch (e) {
+      debugPrint("❌ [ATTENDANCE] Error cleaning duplicates: $e");
+    }
+  }
+
+  // ✅ ADDED: Check for duplicate before adding
+  Future<bool> checkForDuplicate(String attendanceId) async {
+    try {
+      var allRecords = await attendanceRepository.getAttendance();
+      return allRecords.any((record) => record.attendance_in_id == attendanceId);
+    } catch (e) {
+      debugPrint("❌ [ATTENDANCE] Error checking for duplicate: $e");
+      return false;
+    }
+  }
+
+  // ✅ ADDED: Get attendance status
+  Future<Map<String, dynamic>> getAttendanceStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    String? currentId = prefs.getString('currentAttendanceId');
+    String? clockInTime = prefs.getString('clockInTime');
+    bool isClockedInStatus = prefs.getBool('isClockedIn') ?? false;
+
+    var allRecords = await attendanceRepository.getAttendance();
+    int totalRecords = allRecords.length;
+
+    // Check if current ID exists in database
+    bool idExistsInDB = currentId != null &&
+        allRecords.any((record) => record.attendance_in_id == currentId);
+
+    return {
+      'currentId': currentId,
+      'clockInTime': clockInTime,
+      'isClockedIn': isClockedInStatus,
+      'idExistsInDB': idExistsInDB,
+      'totalRecords': totalRecords,
+      'hasDuplicates': totalRecords > Set.from(allRecords.map((r) => r.attendance_in_id)).length,
+    };
+  }
+
+  // ✅ ADDED: Force cleanup and reset
+  Future<void> forceCleanup() async {
+    try {
+      debugPrint("🧹 [ATTENDANCE] Starting force cleanup...");
+
+      // 1. Clean duplicate records
+      await cleanDuplicateRecords();
+
+      // 2. Clear any invalid state
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      // Check if clocked in but no clock in time
+      bool isClockedInStatus = prefs.getBool('isClockedIn') ?? false;
+      String? clockInTime = prefs.getString('clockInTime');
+
+      if (isClockedInStatus && clockInTime == null) {
+        debugPrint("⚠️ [ATTENDANCE] Invalid state: Clocked in but no clock in time");
+        await prefs.setBool('isClockedIn', false);
+      }
+
+      // 3. Check for orphaned records (records without matching state)
+      var allRecords = await attendanceRepository.getAttendance();
+      String? currentId = prefs.getString('currentAttendanceId');
+
+      if (currentId != null && !allRecords.any((r) => r.attendance_in_id == currentId)) {
+        debugPrint("⚠️ [ATTENDANCE] Orphaned current ID: $currentId");
+        await prefs.remove('currentAttendanceId');
+      }
+
+      debugPrint("✅ [ATTENDANCE] Force cleanup completed");
+
+    } catch (e) {
+      debugPrint("❌ [ATTENDANCE] Error in force cleanup: $e");
+    }
   }
 }

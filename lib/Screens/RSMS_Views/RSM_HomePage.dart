@@ -743,6 +743,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:order_booking_app/Screens/leave_form_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:permission_handler/permission_handler.dart'
@@ -876,7 +877,7 @@ class _RSMHomepageState extends State<RSMHomepage> {
                 ),
 
                 // SizedBox(height: padding / 2),
-                SizedBox(height: padding * 4),
+                SizedBox(height: padding * 0),
 
                 // 🧩 Grid Menu
                 Expanded(
@@ -915,6 +916,15 @@ class _RSMHomepageState extends State<RSMHomepage> {
                         "BOOKERS ORDER DETAILS",
                         Icons.receipt_long_rounded,
                         Colors.deepPurple,
+                        iconSize,
+                        fontSize,
+                      ),
+                      _buildModernCard(
+                        context,
+                        "LEAVE",
+                        // Icons.sick_outlined,
+                        Icons.event_busy,
+                        Colors.blue,
                         iconSize,
                         fontSize,
                       ),
@@ -1027,6 +1037,9 @@ class _RSMHomepageState extends State<RSMHomepage> {
         break;
       case 'LIVE LOCATION':
         Navigator.push(context, MaterialPageRoute(builder: (context) => LiveLocationPage()));
+        break;
+      case 'LEAVE':
+        Navigator.push(context, MaterialPageRoute(builder: (context) => LeaveFormScreen()));
         break;
     }
   }

@@ -167,6 +167,170 @@ class GPXCoordinateService {
     return distance;
   }
 
+  // gpx_coordinate_service.dart mein _calculateHaversineDistance ke baad ye method add karein
+
+  double calculateHaversineDistanceInMeters(LatLng point1, LatLng point2) {
+    const double earthRadius = 6371.0; // Earth's radius in kilometers
+
+    double lat1 = point1.latitude * (pi / 180.0);
+    double lon1 = point1.longitude * (pi / 180.0);
+    double lat2 = point2.latitude * (pi / 180.0);
+    double lon2 = point2.longitude * (pi / 180.0);
+
+    double dLat = lat2 - lat1;
+    double dLon = lon2 - lon1;
+
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2);
+
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    double distanceInKm = earthRadius * c;
+    double distanceInMeters = distanceInKm * 1000; // Convert to meters
+
+    return distanceInMeters;
+  }
+
+// Enhanced clustering method with 50m rule
+  Map<String, List<LatLng>> clusterCoordinatesWith50mRule(
+      List<LatLng> coordinates,
+      {double clusterRadiusMeters = 50.0} // Fixed to 50 meters
+      ) {
+    debugPrint("🗂️ Starting 50-meter clustering of ${coordinates.length} points...");
+    debugPrint("📏 Cluster radius threshold: $clusterRadiusMeters meters");
+
+    Map<String, List<LatLng>> clusters = {};
+    List<LatLng> clusterCenters = [];
+    List<String> clusterCenterKeys = [];
+
+    for (var coord in coordinates) {
+      debugPrint("📌 Checking point: ${coord.latitude}, ${coord.longitude}");
+
+      bool addedToCluster = false;
+
+      // Check against existing cluster centers
+      for (int i = 0; i < clusterCenters.length; i++) {
+        LatLng clusterCenter = clusterCenters[i];
+        String clusterKey = clusterCenterKeys[i];
+
+        double distanceInMeters = calculateHaversineDistanceInMeters(coord, clusterCenter);
+
+        debugPrint("   📏 Distance from cluster center ($clusterKey): ${distanceInMeters.toStringAsFixed(2)} m");
+
+        if (distanceInMeters <= clusterRadiusMeters) {
+          // Point is within 50m of existing cluster center
+          debugPrint("   ➕ Adding to existing cluster: $clusterKey (within 50m)");
+          clusters[clusterKey]!.add(coord);
+          addedToCluster = true;
+
+          // Recalculate cluster center as centroid of all points
+          if (clusters[clusterKey]!.isNotEmpty) {
+            clusterCenters[i] = calculateCentralPoint(clusters[clusterKey]!);
+            clusterCenterKeys[i] = "${clusterCenters[i].latitude},${clusterCenters[i].longitude}";
+          }
+          break;
+        }
+      }
+
+      if (!addedToCluster) {
+        // Check if this point can become a new cluster center
+        // First, check if it's within 50m of any existing cluster point
+        bool shouldCreateNewCluster = true;
+
+        for (var clusterKey in clusters.keys) {
+          var clusterPoints = clusters[clusterKey]!;
+          for (var clusterPoint in clusterPoints) {
+            double distanceInMeters = calculateHaversineDistanceInMeters(coord, clusterPoint);
+            if (distanceInMeters <= clusterRadiusMeters) {
+              // This point is within 50m of an existing cluster point
+              // So it belongs to that existing cluster
+              debugPrint("   🔄 Point is within 50m of existing cluster point - adding to cluster");
+              clusters[clusterKey]!.add(coord);
+              addedToCluster = true;
+
+              // Recalculate cluster center
+              int clusterIndex = clusterCenterKeys.indexOf(clusterKey);
+              if (clusterIndex != -1) {
+                clusterCenters[clusterIndex] = calculateCentralPoint(clusters[clusterKey]!);
+                clusterCenterKeys[clusterIndex] = "${clusterCenters[clusterIndex].latitude},${clusterCenters[clusterIndex].longitude}";
+              }
+              break;
+            }
+          }
+          if (addedToCluster) break;
+        }
+
+        if (!addedToCluster) {
+          // Create new cluster
+          String newClusterKey = "${coord.latitude},${coord.longitude}";
+          debugPrint("   🆕 Creating NEW cluster (outside 50m radius): $newClusterKey");
+          clusters[newClusterKey] = [coord];
+          clusterCenters.add(coord);
+          clusterCenterKeys.add(newClusterKey);
+        }
+      }
+    }
+
+    // Final pass: Merge clusters that are within 50m of each other
+    debugPrint("🔄 Merging clusters within 50m of each other...");
+    clusters = _mergeClustersWithin50m(clusters, clusterRadiusMeters);
+
+    debugPrint("🗂️ Final clusters created: ${clusters.length}");
+    return clusters;
+  }
+
+// Helper method to merge clusters that are close to each other
+  Map<String, List<LatLng>> _mergeClustersWithin50m(
+      Map<String, List<LatLng>> clusters,
+      double clusterRadiusMeters) {
+
+    if (clusters.length <= 1) return clusters;
+
+    Map<String, List<LatLng>> mergedClusters = {};
+    List<String> keys = clusters.keys.toList();
+    List<bool> merged = List.filled(keys.length, false);
+
+    for (int i = 0; i < keys.length; i++) {
+      if (merged[i]) continue;
+
+      String currentKey = keys[i];
+      LatLng currentCenter = _parseClusterKey(currentKey);
+      List<LatLng> currentCluster = clusters[currentKey]!;
+
+      // Check other clusters
+      for (int j = i + 1; j < keys.length; j++) {
+        if (merged[j]) continue;
+
+        String otherKey = keys[j];
+        LatLng otherCenter = _parseClusterKey(otherKey);
+
+        double distance = calculateHaversineDistanceInMeters(currentCenter, otherCenter);
+
+        if (distance <= clusterRadiusMeters) {
+          debugPrint("   🔗 Merging clusters: $currentKey and $otherKey (distance: ${distance.toStringAsFixed(2)}m)");
+
+          // Merge clusters
+          currentCluster.addAll(clusters[otherKey]!);
+          merged[j] = true;
+        }
+      }
+
+      if (!merged[i]) {
+        // Calculate new center for merged cluster
+        LatLng newCenter = calculateCentralPoint(currentCluster);
+        String newKey = "${newCenter.latitude},${newCenter.longitude}";
+        mergedClusters[newKey] = currentCluster;
+        merged[i] = true;
+      }
+    }
+
+    return mergedClusters;
+  }
+
+
+
+
+
   LatLng _parseClusterKey(String key) {
     debugPrint("🔧 Parsing cluster key: $key");
     var parts = key.split(',');

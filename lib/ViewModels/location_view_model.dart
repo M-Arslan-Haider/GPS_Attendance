@@ -1,3 +1,6 @@
+
+
+///gpx
 // import 'dart:async';
 // import 'dart:convert';
 // import 'dart:io';
@@ -250,7 +253,8 @@
 //       LatLng overallCenter = gpxService.calculateCentralPoint(coordinates);
 //
 //       // 4. Create clusters
-//       var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+//       // var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+//       var clusters = gpxService.clusterCoordinates(coordinates, clusterDistanceMeters: 0.1);
 //       var centers = gpxService.calculateClusterCenters(clusters);
 //
 //       debugPrint("🗂 24 Hours Summary:");
@@ -318,7 +322,8 @@
 //       var timeClusters = await clusterByTimeRanges(coordinates, allPoints);
 //
 //       // 3. Enhanced cluster analysis
-//       var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+//       // var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+//       var clusters = gpxService.clusterCoordinates(coordinates, clusterDistanceMeters: 0.1);
 //       var stayTimes = await _calculateClusterStayTimes(allPoints, clusters);
 //       var clusterAreas = _calculateClusterAreas(clusters);
 //
@@ -402,7 +407,8 @@
 //       debugPrint("🎯 Overall Central Point: ${overallCenter.latitude}, ${overallCenter.longitude}");
 //
 //       // 3. Clustering karein
-//       var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+//       // var clusters = gpxService.clusterCoordinates(coordinates, clusterDistance: 0.1);
+//       var clusters = gpxService.clusterCoordinates(coordinates, clusterDistanceMeters: 0.1);
 //       var centers = gpxService.calculateClusterCenters(clusters);
 //       clusterCenters.value = centers;
 //
@@ -424,7 +430,6 @@
 //     }
 //   }
 //
-//   // ENHANCED CENTRAL POINTS STORE KARNE KA COMPLETE METHOD WITH NEW FIELDS
 //   // ENHANCED CENTRAL POINTS STORE KARNE KA COMPLETE METHOD WITH NEW FIELDS
 //   // ENHANCED CENTRAL POINTS STORE KARNE KA COMPLETE METHOD WITH NEW FIELDS
 //   // ENHANCED CENTRAL POINTS STORE KARNE KA COMPLETE METHOD WITH NEW FIELDS - FIXED DUPLICATES
@@ -922,6 +927,53 @@
 //
 //     } catch (e) {
 //       debugPrint("❌ Error in saveLocationWithCentralPoints: $e");
+//     }
+//   }
+//
+//   // ✅ NEW: Save location locally only (2-second clock-out)
+//   Future<void> saveLocationLocallyOnly() async {
+//     SharedPreferences prefs = await SharedPreferences.getInstance();
+//     final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
+//     final downloadDirectory = await getDownloadsDirectory();
+//     final gpxFilePath = '${downloadDirectory!.path}/track$date.gpx';
+//     final gpxFile = File(gpxFilePath);
+//
+//     if (!gpxFile.existsSync()) {
+//       debugPrint('❌ GPX file does not exist for local save');
+//       return;
+//     }
+//
+//     try {
+//       debugPrint("💾 [LOCAL SAVE] Saving location data locally (posted=0)");
+//
+//       // 1. Calculate total distance
+//       double totalDistance = await calculateTotalDistance(gpxFilePath);
+//       await prefs.setDouble('totalDistance', totalDistance);
+//       debugPrint("   📏 Distance: $totalDistance km");
+//
+//       // 2. Read GPX file
+//       List<int> gpxBytesList = await gpxFile.readAsBytes();
+//       Uint8List gpxBytes = Uint8List.fromList(gpxBytesList);
+//
+//       await _loadCounter();
+//       final orderSerial = generateNewOrderId(user_id);
+//
+//       // 3. Save to database with posted = 0
+//       await addLocation(LocationModel(
+//         location_id: orderSerial.toString(),
+//         user_id: user_id.toString(),
+//         total_distance: totalDistance.toString(),
+//         file_name: "$date.gpx",
+//         booker_name: userName,
+//         body: gpxBytes,
+//         posted: 0, // ✅ Mark as not posted
+//       ));
+//
+//       debugPrint("✅ [LOCAL SAVE] Location saved locally with posted=0");
+//       debugPrint("   📁 File: $date.gpx");
+//
+//     } catch (e) {
+//       debugPrint("❌ Error saving location locally: $e");
 //     }
 //   }
 //
@@ -1556,7 +1608,7 @@
 //   }
 // }
 
-///gpx
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -2638,49 +2690,183 @@ class LocationViewModel extends GetxController {
   }
 
   // ----------------------
-  // GPX & Distance Logic
+  // GPX & Distance Logic - UPDATED SECTION
   // ----------------------
-  Future<double> calculateTotalDistance(String filePath) async {
-    File file = File(filePath);
-    if (!file.existsSync()) {
-      return 0.0;
-    }
 
-    String gpxContent = await file.readAsString();
-    if (gpxContent.isEmpty) {
-      return 0.0;
-    }
-
-    Gpx gpx;
+  // Helper: Debug GPX file structure
+  Future<void> debugGPXFile(String filePath) async {
     try {
-      gpx = GpxReader().fromString(gpxContent);
-    } catch (e) {
-      debugPrint("Error parsing GPX content: $e");
-      return 0.0;
-    }
+      File file = File(filePath);
 
-    double totalDistance = 0.0;
-    for (var track in gpx.trks) {
-      for (var segment in track.trksegs) {
-        for (int i = 0; i < segment.trkpts.length - 1; i++) {
-          double distance = calculateDistance(
-            segment.trkpts[i].lat?.toDouble() ?? 0.0,
-            segment.trkpts[i].lon?.toDouble() ?? 0.0,
-            segment.trkpts[i + 1].lat?.toDouble() ?? 0.0,
-            segment.trkpts[i + 1].lon?.toDouble() ?? 0.0,
-          );
-          totalDistance += distance;
-        }
+      if (!file.existsSync()) {
+        debugPrint("❌ debugGPXFile: File does not exist: $filePath");
+        return;
       }
-    }
 
-    debugPrint("CUT: $totalDistance");
-    return totalDistance;
+      String content = await file.readAsString();
+      debugPrint("🔍 GPX File Debug:");
+      debugPrint("Path: $filePath");
+      debugPrint("Size: ${content.length} characters");
+
+      // Show first 500 characters
+      String preview = content.length > 500 ? content.substring(0, 500) + "..." : content;
+      debugPrint("Preview:\n$preview");
+
+      // Parse and show structure
+      try {
+        Gpx gpx = GpxReader().fromString(content);
+        debugPrint("\n📊 GPX Structure Details:");
+        debugPrint("Number of tracks: ${gpx.trks.length}");
+
+        int pointCount = 0;
+        for (int i = 0; i < gpx.trks.length; i++) {
+          var track = gpx.trks[i];
+          debugPrint("Track $i: ${track.name}");
+
+          for (int j = 0; j < track.trksegs.length; j++) {
+            var segment = track.trksegs[j];
+            debugPrint("  Segment $j: ${segment.trkpts.length} points");
+            pointCount += segment.trkpts.length;
+
+            // Show first 3 points
+            for (int k = 0; k < min(3, segment.trkpts.length); k++) {
+              var point = segment.trkpts[k];
+              debugPrint("    Point $k: Lat=${point.lat}, Lon=${point.lon}, Time=${point.time}");
+            }
+          }
+        }
+
+        debugPrint("\n📈 Total points in file: $pointCount");
+
+      } catch (e) {
+        debugPrint("❌ Error parsing GPX: $e");
+      }
+
+    } catch (e) {
+      debugPrint("❌ Error debugging GPX file: $e");
+    }
   }
 
+  // UPDATED: Improved distance calculation with better debugging
+  Future<double> calculateTotalDistance(String filePath) async {
+    try {
+      File file = File(filePath);
+
+      // 1. Check if file exists
+      if (!file.existsSync()) {
+        debugPrint("❌ calculateTotalDistance: File does not exist at $filePath");
+        return 0.0;
+      }
+
+      // 2. Check file size
+      int fileSize = await file.length();
+      debugPrint("📁 File size: $fileSize bytes");
+
+      if (fileSize == 0) {
+        debugPrint("❌ calculateTotalDistance: File is empty");
+        return 0.0;
+      }
+
+      // 3. Read file content
+      String gpxContent = await file.readAsString();
+      debugPrint("📄 File content length: ${gpxContent.length} characters");
+
+      if (gpxContent.isEmpty || !gpxContent.contains("<gpx")) {
+        debugPrint("❌ calculateTotalDistance: Invalid GPX content or format");
+        return 0.0;
+      }
+
+      // 4. Parse GPX
+      Gpx gpx;
+      try {
+        gpx = GpxReader().fromString(gpxContent);
+        debugPrint("✅ GPX parsing successful");
+      } catch (e) {
+        debugPrint("❌ Error parsing GPX content: $e");
+        return 0.0;
+      }
+
+      // 5. Debug track information
+      debugPrint("📊 GPX Structure:");
+      debugPrint("   - Number of tracks: ${gpx.trks.length}");
+
+      double totalDistance = 0.0;
+      int totalPoints = 0;
+
+      for (var track in gpx.trks) {
+        debugPrint("   - Track: ${track.name}");
+        debugPrint("   - Number of segments: ${track.trksegs.length}");
+
+        for (var segment in track.trksegs) {
+          debugPrint("     - Segment points: ${segment.trkpts.length}");
+          totalPoints += segment.trkpts.length;
+
+          // Calculate distance between consecutive points
+          for (int i = 0; i < segment.trkpts.length - 1; i++) {
+            var point1 = segment.trkpts[i];
+            var point2 = segment.trkpts[i + 1];
+
+            // Check if points have valid coordinates
+            if (point1.lat != null && point1.lon != null &&
+                point2.lat != null && point2.lon != null) {
+
+              double distance = calculateDistance(
+                point1.lat!.toDouble(),
+                point1.lon!.toDouble(),
+                point2.lat!.toDouble(),
+                point2.lon!.toDouble(),
+              );
+
+              totalDistance += distance;
+
+              // Debug first few distances
+              if (i < 3) {
+                debugPrint("       Point $i to ${i+1}: ${distance.toStringAsFixed(6)} km");
+              }
+            } else {
+              debugPrint("⚠️ Skipping invalid point at index $i");
+            }
+          }
+        }
+      }
+
+      debugPrint("📊 Total Statistics:");
+      debugPrint("   - Total points: $totalPoints");
+      debugPrint("   - Total distance: ${totalDistance.toStringAsFixed(6)} km");
+
+      return totalDistance;
+
+    } catch (e) {
+      debugPrint("❌ calculateTotalDistance ERROR: $e");
+      debugPrint("Stack trace: ${StackTrace.current}");
+      return 0.0;
+    }
+  }
+
+  // UPDATED: Improved distance calculation with better error handling
   double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    double distanceInMeters = Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
-    return (distanceInMeters / 1000); // Distance in kilometers
+    try {
+      // Check for valid coordinates
+      if (lat1 == 0.0 && lon1 == 0.0) {
+        debugPrint("⚠️ Warning: Point 1 has zero coordinates");
+      }
+      if (lat2 == 0.0 && lon2 == 0.0) {
+        debugPrint("⚠️ Warning: Point 2 has zero coordinates");
+      }
+
+      double distanceInMeters = Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
+      double distanceInKm = distanceInMeters / 1000;
+
+      // Log if distance is suspiciously large or small
+      if (distanceInKm > 100) {
+        debugPrint("⚠️ Large distance calculated: ${distanceInKm.toStringAsFixed(2)} km between ($lat1, $lon1) and ($lat2, $lon2)");
+      }
+
+      return distanceInKm;
+    } catch (e) {
+      debugPrint("❌ Error in calculateDistance: $e");
+      return 0.0;
+    }
   }
 
   Future<double> calculateShiftDistance(DateTime shiftStartTime) async {

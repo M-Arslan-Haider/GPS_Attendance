@@ -644,3 +644,4 @@ class AttendanceOutRepository extends GetxService {
     }
   }
 }
+

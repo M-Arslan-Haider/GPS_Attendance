@@ -1,14 +1,27 @@
+//buildscript {
+//    ext.kotlin_version = '1.9.22'
+//    repositories {
+//        maven {
+//            url = uri("https://plugins.gradle.org/m2/")
+//        }
+//        mavenCentral()
+//        google()
+//    }
+//    dependencies {
+//        classpath 'com.android.tools.build:gradle:8.1.2'
+//        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+//        classpath 'com.google.gms:google-services:4.3.15'
+//    }
+//}
 buildscript {
-    ext.kotlin_version = '1.9.25'
+//    ext.kotlin_version = '1.9.24'
     repositories {
-        maven {
-            url = uri("https://plugins.gradle.org/m2/")
-        }
-        mavenCentral()
         google()
+        mavenCentral()
+        maven { url = uri("https://plugins.gradle.org/m2/") }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.3.2'
+        classpath 'com.android.tools.build:gradle:8.2.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath 'com.google.gms:google-services:4.3.15'
     }

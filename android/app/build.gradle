@@ -217,6 +217,7 @@ dependencies {
 
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.4"
 
+
     // Remove BouncyCastle
     configurations.all {
         exclude group: "org.bouncycastle", module: "bcprov-jdk18on"

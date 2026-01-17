@@ -328,4 +328,35 @@ class AddShopRepository extends GetxService {
   Future<void> syncAllPendingData() async {
     await postDataFromDatabaseToAPI();
   }
+
+  Future<List<AddShopModel>> getShopDashboard() async {
+    await Config.fetchLatestConfig();
+
+    final String url =
+        "https://cloud.metaxperts.net:8443/erp/valor_trading/addshopget/get/$user_id";
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        "Accept": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+
+      // Check if decoded is List or Map
+      if (decoded is List) {
+        return decoded.map((e) => AddShopModel.fromMap(e)).toList();
+      } else if (decoded is Map) {
+        return [AddShopModel.fromMap(decoded)]; // wrap single object in list
+      } else {
+        throw Exception("Unexpected API response format");
+      }
+    } else {
+      throw Exception("Dashboard API failed: ${response.statusCode}");
+    }
+  }
+
+
 }

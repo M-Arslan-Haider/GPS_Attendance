@@ -295,7 +295,7 @@ class _CustomDropdownState extends State<CustomDropdownSecond> {
                           // Dropdown decoration
                           dropdownDecoratorProps: DropDownDecoratorProps(
                             dropdownSearchDecoration: InputDecoration(
-                              labelText: 'Select ${widget.label}',
+                              labelText: 'Select a City ${widget.label}',
                               border: InputBorder.none,
                               hintText: 'Choose from ${widget.items.length} options',
                               suffixIcon: widget.showSerialNumbers

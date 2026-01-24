@@ -211,7 +211,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: Color(0xFF1976D2),
+        backgroundColor: Colors.blueGrey,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
       ),
@@ -443,7 +443,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
                     "(غیر فعال)",
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.orange.shade700,
+                      color: Colors.blueGrey.shade700,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -461,7 +461,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
             "نوٹ: آدھے دن کی چھٹی صرف ایک دن کے لیے منتخب کی جا سکتی ہے۔",
             style: TextStyle(
               fontSize: 12,
-              color: Colors.orange.shade700,
+              color: Colors.blueGrey.shade700,
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -477,7 +477,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
       Obx(() => leaveVM.isLoading.value
           ? Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1976D2)),
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.blueGrey),
         ),
       )
           : SizedBox(
@@ -485,7 +485,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
         height: 52,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFF1976D2),
+            backgroundColor: Colors.blueGrey,
             foregroundColor: Colors.white,
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -515,7 +515,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1976D2),
+            color: Colors.blueGrey,
             letterSpacing: 0.3,
           ),
         ),
@@ -582,16 +582,16 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
           width: double.infinity,
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
+            color: Colors.blueGrey.shade50,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Color(0xFF1976D2).withOpacity(0.3)),
+            border: Border.all(color: Colors.blueGrey.withOpacity(0.3)),
           ),
           child: Text(
             value.isEmpty ? "0" : value,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1976D2),
+              color: Colors.blueGrey,
             ),
           ),
         ),
@@ -775,12 +775,12 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
                   decoration: BoxDecoration(
                     color: attachmentData != null
                         ? Colors.green.shade50
-                        : Colors.blue.shade50,
+                        : Colors.blueGrey.shade50,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: attachmentData != null
                           ? Colors.green.shade300
-                          : Color(0xFF1976D2).withOpacity(0.3),
+                          : Colors.blueGrey.withOpacity(0.3),
                     ),
                   ),
                   child: Row(
@@ -818,7 +818,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
                                 fontSize: 15,
                                 color: attachmentData != null
                                     ? Colors.green.shade700
-                                    : Color(0xFF1976D2),
+                                    : Colors.blueGrey,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -862,13 +862,13 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
                 child: Container(
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: Colors.blueGrey.shade50,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade300),
+                    border: Border.all(color: Colors.blueGrey.shade300),
                   ),
                   child: Icon(
                     Icons.preview,
-                    color: Colors.blue.shade700,
+                    color: Colors.blueGrey.shade700,
                     size: 24,
                   ),
                 ),

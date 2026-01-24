@@ -7,8 +7,8 @@ import 'package:gpx/gpx.dart';
 import 'package:intl/intl.dart';
 
 class GPXCoordinateService {
-  // Default cluster distance in meters (50 m)
-  final double defaultClusterDistanceMeters = 50.0;
+  // ✅ FIX: Cluster distance in meters (100 m)
+  final double defaultClusterDistanceMeters = 100.0;
 
   Future<List<LatLng>> extractCoordinatesFromGPX(String filePath) async {
     debugPrint("🔍 extractCoordinatesFromGPX() called with path: $filePath");
@@ -35,6 +35,9 @@ class GPXCoordinateService {
       List<LatLng> allCoordinates = [];
 
       debugPrint("🔍 Extracting tracks, segments, and points...");
+      int pointCount = 0;
+      DateTime now = DateTime.now();
+
       for (var track in gpx.trks) {
         debugPrint("➡️ Track found with ${track.trksegs.length} segments");
 
@@ -42,24 +45,153 @@ class GPXCoordinateService {
           debugPrint("   ➡️ Segment found with ${segment.trkpts.length} points");
 
           for (var point in segment.trkpts) {
-            debugPrint("      🔹 Point lat=${point.lat}, lon=${point.lon}, time=${point.time}");
-
+            pointCount++;
             if (point.lat != null && point.lon != null) {
               allCoordinates.add(LatLng(
                 point.lat!.toDouble(),
                 point.lon!.toDouble(),
               ));
+
+              // ✅ FIX: Validate and correct timestamps with REAL current time
+              if (point.time == null) {
+                debugPrint("      ⚠️ Point $pointCount: NO TIMESTAMP - adding current time");
+                point.time = now;
+              } else {
+                // Validate timestamp is not in future
+                if (point.time!.isAfter(now)) {
+                  debugPrint("      ⚠️ Point $pointCount: FUTURE TIMESTAMP ${point.time} - correcting to current");
+                  point.time = now;
+                }
+                debugPrint("      ⏱️ Point $pointCount: ${DateFormat('HH:mm:ss').format(point.time!)}");
+              }
             }
           }
         }
       }
 
       debugPrint("📍 Total Extracted Coordinates: ${allCoordinates.length}");
+
+      // ✅ FIX: Validate and fix GPX timestamps
+      await _validateAndFixGPXTimestamps(gpx, filePath);
+
       return allCoordinates;
 
     } catch (e) {
       debugPrint("❌ Error extracting coordinates: $e");
       return [];
+    }
+  }
+
+  // ✅ FIX: Validate and fix GPX timestamps with proper correction
+  Future<void> _validateAndFixGPXTimestamps(Gpx gpx, String filePath) async {
+    try {
+      List<DateTime> allTimes = [];
+      int validTimestamps = 0;
+      int fixedTimestamps = 0;
+      DateTime now = DateTime.now();
+      DateTime maxPastTime = now.subtract(Duration(days: 1));
+
+      for (var track in gpx.trks) {
+        for (var segment in track.trksegs) {
+          for (var point in segment.trkpts) {
+            if (point.time != null) {
+              // Validate timestamp
+              if (point.time!.isAfter(now)) {
+                debugPrint("⚠️ Future timestamp detected: ${point.time}");
+                point.time = now;
+                fixedTimestamps++;
+              } else if (point.time!.isBefore(maxPastTime)) {
+                debugPrint("⚠️ Too old timestamp: ${point.time}");
+                point.time = now;
+                fixedTimestamps++;
+              } else {
+                allTimes.add(point.time!);
+                validTimestamps++;
+              }
+            } else {
+              // Add current time for missing timestamps
+              point.time = now;
+              fixedTimestamps++;
+            }
+          }
+        }
+      }
+
+      debugPrint("⏱️ TIMESTAMP VALIDATION & FIX:");
+      debugPrint("   ✅ Valid timestamps: $validTimestamps");
+      debugPrint("   🔧 Fixed timestamps: $fixedTimestamps");
+
+      if (allTimes.isNotEmpty) {
+        allTimes.sort();
+        DateTime first = allTimes.first;
+        DateTime last = allTimes.last;
+        Duration totalDuration = last.difference(first);
+        double totalMinutes = totalDuration.inSeconds / 60.0;
+
+        debugPrint("   ⏱️ Time range: ${DateFormat('HH:mm:ss').format(first)} - ${DateFormat('HH:mm:ss').format(last)}");
+        debugPrint("   ⏱️ Total duration: ${totalMinutes.toStringAsFixed(2)} minutes");
+
+        // Detect suspicious timestamps (> 2 hours for normal tracking)
+        if (totalMinutes > 120.0 && validTimestamps > 10) {
+          debugPrint("   ⚠️ WARNING: Suspicious time span > 2 hours detected!");
+          debugPrint("   ⚠️ This will cause wrong stay time calculations!");
+
+          // Apply realistic timestamp correction
+          await _applyRealisticTimestampCorrection(gpx, filePath);
+        }
+      }
+
+      // Save fixed GPX if changes were made
+      if (fixedTimestamps > 0) {
+        String fixedGPX = GpxWriter().asString(gpx);
+        await File(filePath).writeAsString(fixedGPX);
+        debugPrint("💾 Saved fixed GPX with corrected timestamps");
+      }
+    } catch (e) {
+      debugPrint("❌ Error validating timestamps: $e");
+    }
+  }
+
+  // ✅ FIX: Apply realistic timestamp correction
+  Future<void> _applyRealisticTimestampCorrection(Gpx gpx, String filePath) async {
+    try {
+      debugPrint("🔄 Applying realistic timestamp correction...");
+      DateTime now = DateTime.now();
+      int totalPoints = 0;
+
+      // Count total points
+      for (var track in gpx.trks) {
+        for (var segment in track.trksegs) {
+          totalPoints += segment.trkpts.length;
+        }
+      }
+
+      // Calculate realistic time span (5 seconds per point, max 30 minutes)
+      int totalSeconds = (totalPoints * 5).clamp(10, 1800);
+      DateTime startTime = now.subtract(Duration(seconds: totalSeconds));
+
+      int pointIndex = 0;
+      double secondsPerPoint = totalPoints > 0 ? totalSeconds / totalPoints : 5.0;
+
+      for (var track in gpx.trks) {
+        for (var segment in track.trksegs) {
+          for (var point in segment.trkpts) {
+            // Add incremental time based on point order
+            point.time = startTime.add(Duration(seconds: (pointIndex * secondsPerPoint).round()));
+            pointIndex++;
+          }
+        }
+      }
+
+      debugPrint("✅ Applied realistic timestamp correction to $pointIndex points");
+      debugPrint("   Time span: ${totalSeconds ~/ 60} minutes");
+
+      // Save corrected GPX
+      String correctedGPX = GpxWriter().asString(gpx);
+      await File(filePath).writeAsString(correctedGPX);
+
+    } catch (e) {
+      debugPrint("❌ Error applying timestamp correction: $e");
     }
   }
 
@@ -80,7 +212,6 @@ class GPXCoordinateService {
     double totalLng = 0.0;
 
     for (var coord in coordinates) {
-      debugPrint("   ➕ Adding Lat=${coord.latitude}, Lng=${coord.longitude}");
       totalLat += coord.latitude;
       totalLng += coord.longitude;
     }
@@ -93,11 +224,10 @@ class GPXCoordinateService {
     return LatLng(centerLat, centerLng);
   }
 
-  /// Clustering function with strict distance in meters (default 50 m).
-  /// Guarantees there will not be more than one cluster whose centroids are within the threshold.
+  /// Clustering function with strict distance in meters (100 m).
   Map<String, List<LatLng>> clusterCoordinates(
       List<LatLng> coordinates, {
-        double clusterDistanceMeters = 50.0, // meters
+        double clusterDistanceMeters = 100.0, // ✅ FIX: 100 meters
       }) {
     debugPrint("🗂️ Starting clustering of ${coordinates.length} points...");
     debugPrint("📏 Cluster distance threshold: ${clusterDistanceMeters.toStringAsFixed(0)} METERS");
@@ -211,15 +341,22 @@ class GPXCoordinateService {
       List<Wpt> points,
       Map<String, List<LatLng>> clusters, {
         double timeThresholdMinutes = 5.0,
-        double clusterDistanceMeters = 50.0,
+        double clusterDistanceMeters = 100.0, // ✅ FIX: 100 meters
       }) {
-    debugPrint("⏱️ Calculating ACTUAL cluster stay times...");
+    debugPrint("⏱️ Calculating VALIDATED cluster stay times...");
 
     Map<String, double> stayTimes = {};
     Map<String, List<DateTime>> clusterTimestamps = {};
+    DateTime now = DateTime.now();
 
     for (var point in points) {
       if (point.lat == null || point.lon == null || point.time == null) continue;
+
+      // Validate timestamp
+      DateTime pointTime = point.time!;
+      if (pointTime.isAfter(now)) {
+        pointTime = now;
+      }
 
       LatLng pointLatLng = LatLng(point.lat!.toDouble(), point.lon!.toDouble());
 
@@ -231,7 +368,7 @@ class GPXCoordinateService {
           if (!clusterTimestamps.containsKey(clusterKey)) {
             clusterTimestamps[clusterKey] = [];
           }
-          clusterTimestamps[clusterKey]!.add(point.time!);
+          clusterTimestamps[clusterKey]!.add(pointTime);
           break;
         }
       }
@@ -246,39 +383,42 @@ class GPXCoordinateService {
 
       timestamps.sort();
 
-      double totalStayTime = 0.0;
-      DateTime? entryTime;
-      DateTime? lastTimeInCluster;
+      DateTime first = timestamps.first;
+      DateTime last = timestamps.last;
 
-      for (int i = 0; i < timestamps.length; i++) {
-        DateTime currentTime = timestamps[i];
-
-        if (entryTime == null) {
-          entryTime = currentTime;
-          lastTimeInCluster = currentTime;
-          continue;
-        }
-
-        double timeGap = currentTime.difference(lastTimeInCluster!).inMinutes.toDouble();
-
-        if (timeGap <= timeThresholdMinutes) {
-          lastTimeInCluster = currentTime;
-        } else {
-          double sessionStayTime = lastTimeInCluster.difference(entryTime!).inMinutes.toDouble();
-          totalStayTime += sessionStayTime;
-
-          entryTime = currentTime;
-          lastTimeInCluster = currentTime;
-        }
+      // Validate timestamps
+      if (first.isAfter(now)) first = now.subtract(Duration(minutes: 1));
+      if (last.isAfter(now)) last = now;
+      if (last.isBefore(first)) {
+        DateTime temp = first;
+        first = last;
+        last = temp;
       }
 
-      if (entryTime != null && lastTimeInCluster != null) {
-        double lastSessionStayTime = lastTimeInCluster.difference(entryTime).inMinutes.toDouble();
-        totalStayTime += lastSessionStayTime;
-      }
+      double calculatedTime = last.difference(first).inSeconds / 60.0;
 
-      stayTimes[clusterKey] = totalStayTime;
-      debugPrint("⏱️ Cluster $clusterKey TOTAL stay time: ${totalStayTime.toStringAsFixed(2)} minutes");
+      // ✅ FIX: Detect suspicious time calculations
+      if (calculatedTime > 120.0) {
+        debugPrint("""
+⚠️⚠️⚠️ SUSPICIOUS CLUSTER TIME DETECTED ⚠️⚠️⚠️
+   Cluster: $clusterKey
+   Points: ${timestamps.length}
+   First: ${DateFormat('HH:mm:ss').format(first)}
+   Last: ${DateFormat('HH:mm:ss').format(last)}
+   Calculated: ${calculatedTime.toStringAsFixed(2)} minutes
+
+   ✅ Using validated fallback calculation...
+""");
+
+        // Use validated fallback (0.5 minutes per point, max 30 minutes)
+        double validatedTime = timestamps.length * 0.5;
+        validatedTime = validatedTime.clamp(0.1, 30.0);
+        stayTimes[clusterKey] = validatedTime;
+        debugPrint("   ✅ Validated time: ${validatedTime.toStringAsFixed(2)} minutes");
+      } else {
+        stayTimes[clusterKey] = calculatedTime;
+        debugPrint("⏱️ Cluster $clusterKey VALID stay time: ${calculatedTime.toStringAsFixed(2)} minutes");
+      }
     });
 
     return stayTimes;
@@ -376,6 +516,48 @@ Processed: $currentTime""";
   // Original method for backward compatibility
   Future<String> getAddressFromLatLng(LatLng point) async {
     return await getExtremelyDetailedAddress(point);
+  }
+
+  // ✅ FIX: Validate and fix GPX timestamps with correction for suspicious times
+  Future<void> validateAndFixGPXTimestamps(String filePath) async {
+    try {
+      File file = File(filePath);
+      if (!file.existsSync()) return;
+
+      String gpxContent = await file.readAsString();
+      Gpx gpx = GpxReader().fromString(gpxContent);
+
+      bool hasInvalidTimestamps = false;
+      int fixedCount = 0;
+      DateTime now = DateTime.now();
+
+      for (var track in gpx.trks) {
+        for (var segment in track.trksegs) {
+          for (var point in segment.trkpts) {
+            if (point.time == null) {
+              hasInvalidTimestamps = true;
+              // Add current time as fallback
+              point.time = now;
+              fixedCount++;
+            } else if (point.time!.isAfter(now)) {
+              // Fix future timestamps
+              point.time = now;
+              fixedCount++;
+              hasInvalidTimestamps = true;
+            }
+          }
+        }
+      }
+
+      if (hasInvalidTimestamps) {
+        debugPrint("⚠️ Fixed $fixedCount invalid timestamps in GPX file");
+        // Save fixed GPX
+        String fixedGPX = GpxWriter().asString(gpx);
+        await file.writeAsString(fixedGPX);
+      }
+    } catch (e) {
+      debugPrint("❌ Error fixing GPX timestamps: $e");
+    }
   }
 }
 

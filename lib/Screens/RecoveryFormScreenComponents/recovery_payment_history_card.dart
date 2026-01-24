@@ -43,7 +43,7 @@ class RecoveryPaymentHistoryCard extends StatelessWidget {
                 // Search Bar
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: Colors.blueGrey.shade50,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(12),
                     ),
@@ -52,7 +52,7 @@ class RecoveryPaymentHistoryCard extends StatelessWidget {
                   child: TextField(
                     controller: searchController,
                     decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.search, color: Colors.blue),
+                      prefixIcon: const Icon(Icons.search, color: Colors.blueGrey),
                       hintText: 'Search products...',
                       hintStyle: const TextStyle(fontSize: 16, color: Colors.grey),
                       filled: true,
@@ -67,7 +67,7 @@ class RecoveryPaymentHistoryCard extends StatelessWidget {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Colors.blue, width: 2),
+                        borderSide: const BorderSide(color: Colors.blueGrey, width: 2),
                       ),
                     ),
                   ),
@@ -99,11 +99,11 @@ class RecoveryPaymentHistoryCard extends StatelessWidget {
                         scrollDirection: Axis.vertical,
                         child: DataTable(
                           headingRowColor: MaterialStateProperty.resolveWith(
-                                (states) => Colors.blue.shade100,
+                                (states) => Colors.blueGrey.shade100,
                           ),
                           dataRowColor: MaterialStateProperty.resolveWith(
                                 (states) => states.contains(MaterialState.selected)
-                                ? Colors.blue.shade50
+                                ? Colors.blueGrey.shade50
                                 : Colors.grey.shade50,
                           ),
                           border: TableBorder.all(color: Colors.grey.shade300),

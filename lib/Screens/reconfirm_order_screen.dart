@@ -398,7 +398,7 @@ class _ReconfirmOrderScreenState extends State<ReconfirmOrderScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.blueGrey,
         centerTitle: true,
         actions: [
           IconButton(
@@ -484,7 +484,7 @@ class _ReconfirmOrderScreenState extends State<ReconfirmOrderScreen> {
 
                   // Get.offNamed("/home");
                 },
-                gradientColors: [Colors.red.shade700, Colors.red],
+                gradientColors: [Colors.blueGrey.shade700, Colors.blueGrey],
               ),
             ),
           ],
@@ -518,7 +518,7 @@ class _ReconfirmOrderScreenState extends State<ReconfirmOrderScreen> {
             onPressed: _prevPage,
             child: const Text('View Previous'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.blueGrey,
               foregroundColor: Colors.white,
             ),
           ),
@@ -527,7 +527,7 @@ class _ReconfirmOrderScreenState extends State<ReconfirmOrderScreen> {
             onPressed: _nextPage,
             child: const Text('View Next'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.blueGrey,
               foregroundColor: Colors.white,
             ),
           ),
@@ -556,7 +556,7 @@ class OrderSummaryRow extends StatelessWidget {
             width: 20,
             child: Text(
               serialNumber.toString(),
-              style: const TextStyle(fontSize: 12, color: Colors.blue),
+              style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
             ),
           ),
           const SizedBox(width: 8),
@@ -633,7 +633,7 @@ class _OrderFooterState extends State<OrderFooter> {
                 await orderMasterViewModel.confirmSubmitForm();
 
               },
-              gradientColors: [Colors.blue, Colors.blue],
+              gradientColors: [Colors.blueGrey, Colors.blueGrey],
             ),
           ),
         ],

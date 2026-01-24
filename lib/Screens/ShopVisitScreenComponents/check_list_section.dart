@@ -32,7 +32,7 @@ class ChecklistSection extends StatelessWidget {
                         onChanged: (value) {
                           onStateChanged(index, value);
                         },
-                        activeColor: Colors.blue,
+                        activeColor: Colors.blueGrey,
 
                       ),
                       Expanded(

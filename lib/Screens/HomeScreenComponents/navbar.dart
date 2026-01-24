@@ -544,7 +544,7 @@ class Navbar extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    "Order Management System",
+                    "Book once. Anywhere.",
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.80),
                       fontSize: 11,

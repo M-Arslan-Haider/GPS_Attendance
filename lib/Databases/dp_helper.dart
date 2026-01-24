@@ -696,12 +696,14 @@ class DBHelper extends GetxService {
 
         // Add missing columns if they don't exist
         if (!columnNames.contains('attachment_image')) {
-          await db.execute("ALTER TABLE $leaveTable ADD COLUMN attachment_image TEXT");
+          await db.execute(
+              "ALTER TABLE $leaveTable ADD COLUMN attachment_image TEXT");
           debugPrint('✅ Added attachment_image column to leaveTable');
         }
 
         if (!columnNames.contains('has_attachment')) {
-          await db.execute("ALTER TABLE $leaveTable ADD COLUMN has_attachment INTEGER DEFAULT 0");
+          await db.execute(
+              "ALTER TABLE $leaveTable ADD COLUMN has_attachment INTEGER DEFAULT 0");
           debugPrint('✅ Added has_attachment column to leaveTable');
         }
 
@@ -792,7 +794,8 @@ class DBHelper extends GetxService {
       // Generate filename
       String? attachmentImage;
       if (leave.attachmentData != null) {
-        attachmentImage = 'leave_${leave.bookerId}_${now.millisecondsSinceEpoch}.jpg';
+        attachmentImage =
+            'leave_${leave.bookerId}_${now.millisecondsSinceEpoch}.jpg';
       }
 
       final data = {
@@ -809,7 +812,8 @@ class DBHelper extends GetxService {
         'attachment_data': leave.attachmentData,
         'attachment_image': attachmentImage,
         'application_date': now.toIso8601String().split('T')[0],
-        'application_time': "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}",
+        'application_time':
+            "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}",
         'status': leave.status ?? 'pending',
         'posted': 0,
         'has_attachment': leave.attachmentData != null ? 1 : 0,
@@ -819,7 +823,8 @@ class DBHelper extends GetxService {
       debugPrint('📎 Attachment filename: $attachmentImage');
       debugPrint('📎 BLOB size: ${leave.attachmentData?.length ?? 0} bytes');
 
-      final result = await db.insert(leaveTable, data, conflictAlgorithm: ConflictAlgorithm.replace);
+      final result = await db.insert(leaveTable, data,
+          conflictAlgorithm: ConflictAlgorithm.replace);
       debugPrint('✅ Leave inserted with ID: $result, Leave ID: $leaveId');
       return result;
     } catch (e) {
@@ -842,20 +847,33 @@ class DBHelper extends GetxService {
   }
 
   String _getMonthAbbreviation(int month) {
-    switch(month) {
-      case 1: return 'Jan';
-      case 2: return 'Feb';
-      case 3: return 'Mar';
-      case 4: return 'Apr';
-      case 5: return 'May';
-      case 6: return 'Jun';
-      case 7: return 'Jul';
-      case 8: return 'Aug';
-      case 9: return 'Sep';
-      case 10: return 'Oct';
-      case 11: return 'Nov';
-      case 12: return 'Dec';
-      default: return '---';
+    switch (month) {
+      case 1:
+        return 'Jan';
+      case 2:
+        return 'Feb';
+      case 3:
+        return 'Mar';
+      case 4:
+        return 'Apr';
+      case 5:
+        return 'May';
+      case 6:
+        return 'Jun';
+      case 7:
+        return 'Jul';
+      case 8:
+        return 'Aug';
+      case 9:
+        return 'Sep';
+      case 10:
+        return 'Oct';
+      case 11:
+        return 'Nov';
+      case 12:
+        return 'Dec';
+      default:
+        return '---';
     }
   }
 
@@ -902,7 +920,8 @@ class DBHelper extends GetxService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getLeavesByBookerId(String bookerId) async {
+  Future<List<Map<String, dynamic>>> getLeavesByBookerId(
+      String bookerId) async {
     try {
       final db = await this.db;
       debugPrint('📋 Fetching leaves for booker: $bookerId');
@@ -910,10 +929,22 @@ class DBHelper extends GetxService {
       final leaves = await db.query(
         leaveTable,
         columns: [
-          'id', 'leave_id', 'booker_id', 'booker_name', 'leave_type',
-          'start_date', 'end_date', 'total_days', 'is_half_day', 'reason',
-          'attachment_image', 'application_date', 'application_time',
-          'status', 'posted', 'has_attachment'
+          'id',
+          'leave_id',
+          'booker_id',
+          'booker_name',
+          'leave_type',
+          'start_date',
+          'end_date',
+          'total_days',
+          'is_half_day',
+          'reason',
+          'attachment_image',
+          'application_date',
+          'application_time',
+          'status',
+          'posted',
+          'has_attachment'
         ],
         where: 'booker_id = ?',
         whereArgs: [bookerId],
@@ -966,10 +997,22 @@ class DBHelper extends GetxService {
       final leaves = await db.query(
         leaveTable,
         columns: [
-          'id', 'leave_id', 'booker_id', 'booker_name', 'leave_type',
-          'start_date', 'end_date', 'total_days', 'is_half_day', 'reason',
-          'attachment_image', 'application_date', 'application_time',
-          'status', 'posted', 'has_attachment'
+          'id',
+          'leave_id',
+          'booker_id',
+          'booker_name',
+          'leave_type',
+          'start_date',
+          'end_date',
+          'total_days',
+          'is_half_day',
+          'reason',
+          'attachment_image',
+          'application_date',
+          'application_time',
+          'status',
+          'posted',
+          'has_attachment'
         ],
         where: 'posted = ?',
         whereArgs: [0],
@@ -1001,8 +1044,10 @@ class DBHelper extends GetxService {
 
       // Convert BLOB to Uint8List
       for (var leave in leaves) {
-        if (leave['attachment_data'] != null && leave['attachment_data'] is List<int>) {
-          leave['attachment_data'] = Uint8List.fromList(leave['attachment_data'] as List<int>);
+        if (leave['attachment_data'] != null &&
+            leave['attachment_data'] is List<int>) {
+          leave['attachment_data'] =
+              Uint8List.fromList(leave['attachment_data'] as List<int>);
         }
       }
 

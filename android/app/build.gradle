@@ -433,6 +433,8 @@ flutter {
 }
 
 dependencies {
+    implementation "androidx.core:core-ktx:1.10.1"
+    implementation "androidx.browser:browser:1.8.0"
     implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
     implementation "com.google.firebase:firebase-analytics"
     implementation 'com.google.android.play:integrity:1.4.0'
@@ -456,10 +458,22 @@ dependencies {
         exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
     }
 
+    // Force the versions to avoid AGP conflict
+//    configurations.all {
+//        resolutionStrategy {
+//            force "androidx.core:core-ktx:1.10.1"
+//            force "androidx.browser:browser:1.8.0"
+//        }
+//    }
+
     configurations.all {
         resolutionStrategy {
-            force "androidx.activity:activity:1.7.2"
-            force "androidx.activity:activity-ktx:1.7.2"
+            force 'androidx.core:core:1.13.1'
+            force 'androidx.core:core-ktx:1.13.1'
+            force 'androidx.activity:activity:1.9.2'          // or 1.9.0
+            force 'androidx.activity:activity-ktx:1.9.2'     // or 1.9.0
+            force 'androidx.activity:activity-compose:1.9.2' // if using Compose
+            force 'androidx.browser:browser:1.8.0'  // or 1.7.0 if needed
         }
     }
 }

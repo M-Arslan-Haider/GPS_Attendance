@@ -243,15 +243,15 @@ class ProductSearchCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.blue.shade50, Colors.blue.shade100.withOpacity(0.7)],
+          colors: [Colors.blueGrey.shade50, Colors.blueGrey.shade100.withOpacity(0.7)],
         ),
       ),
       child: TextField(
         controller: controller,
-        cursorColor: Colors.blue.shade700,
+        cursorColor: Colors.blueGrey.shade700,
         style: const TextStyle(fontSize: 16),
         decoration: InputDecoration(
-          prefixIcon: Icon(Icons.search_rounded, color: Colors.blue.shade700),
+          prefixIcon: Icon(Icons.search_rounded, color: Colors.blueGrey.shade700),
           hintText: 'Search product name...',
           hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 15),
           filled: true,
@@ -364,7 +364,7 @@ class ProductSearchCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.blue.shade800,
+                      color: Colors.blueGrey.shade800,
                     ),
                   ),
                 ),
@@ -451,7 +451,7 @@ class ProductSearchCard extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+                    borderSide: BorderSide(color: Colors.blueGrey.shade600, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                   isDense: true,

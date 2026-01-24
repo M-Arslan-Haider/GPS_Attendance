@@ -180,17 +180,17 @@ class AddRowButton extends StatelessWidget {
     final ReturnFormViewModel viewModel = Get.find();
     return CustomButton(
       buttonText: "Add Row",
-      textStyle: TextStyle(color: Colors.blue.shade900, fontSize: 16,fontWeight: FontWeight.bold),
+      textStyle: TextStyle(color: Colors.white, fontSize: 16,fontWeight: FontWeight.bold),
       onTap:() async {
         await returnFormDetailsViewModel.reasons.value;
         returnFormDetailsViewModel.addRow();
         },
-      gradientColors: [Colors.yellow, Colors.yellow.shade200],
+      gradientColors: [Colors.blueGrey, Colors.blueGrey.shade500],
       padding:const EdgeInsets.symmetric(horizontal: 45, vertical: 15) ,
       width: 200,
       height: 50,
       icon: Icons.add_circle_outlined,
-      iconColor: Colors.blue.shade900,
+      iconColor: Colors.white,
       iconPosition: IconPosition.right,
     );
   }
@@ -254,7 +254,7 @@ class SubmitButton extends StatelessWidget {
         //   duration: const Duration(seconds: 3),
         // );
       },
-      gradientColors: const [Colors.blue, Colors.blue],
+      gradientColors: const [Colors.blueGrey, Colors.blueGrey],
     );
   }
 }

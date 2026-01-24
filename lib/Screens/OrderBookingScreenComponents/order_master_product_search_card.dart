@@ -49,14 +49,14 @@ class OrderMasterProductSearchCard extends StatelessWidget {
   Widget _buildSearchBar(TextEditingController controller) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: Colors.blueGrey.shade50,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       child: TextField(
         controller: controller,
         decoration: InputDecoration(
-          prefixIcon: const Icon(Icons.search, color: Colors.blue),
+          prefixIcon: const Icon(Icons.search, color: Colors.blueGrey),
           hintText: 'Search products...',
           hintStyle: const TextStyle(fontSize: 16, color: Colors.grey),
           filled: true,
@@ -69,7 +69,7 @@ class OrderMasterProductSearchCard extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.blue, width: 2),
+            borderSide: const BorderSide(color: Colors.blueGrey, width: 2),
           ),
         ),
         onChanged: filterData,
@@ -92,10 +92,10 @@ class OrderMasterProductSearchCard extends StatelessWidget {
           scrollDirection: Axis.vertical,
           child: DataTable(
             headingRowColor: MaterialStateProperty.resolveWith(
-                (states) => Colors.blue.shade100),
+                (states) => Colors.blueGrey.shade100),
             dataRowColor: MaterialStateProperty.resolveWith((states) =>
                 states.contains(MaterialState.selected)
-                    ? Colors.blue.shade50
+                    ? Colors.blueGrey.shade50
                     : Colors.grey.shade50),
             border: TableBorder.all(color: Colors.grey.shade300),
             columnSpacing: 10,

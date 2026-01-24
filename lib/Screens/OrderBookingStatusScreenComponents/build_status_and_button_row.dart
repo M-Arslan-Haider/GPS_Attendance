@@ -31,7 +31,7 @@ Widget buildStatusAndButtonRow(OrderBookingStatusViewModel viewModel) {
           fontWeight: FontWeight.w600,
         ),
         onTap: () {viewModel.clearFilters();},
-        gradientColors: const [Colors.red, Colors.red], // Use the appropriate gradient colors
+        gradientColors: const [Colors.blueGrey, Colors.blueGrey], // Use the appropriate gradient colors
       ),
     ],
   );

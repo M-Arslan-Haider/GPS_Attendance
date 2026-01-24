@@ -1,4 +1,5 @@
 
+
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ import '../../Databases/util.dart';
 import '../../LocatioPoints/ravelTimeViewModel.dart';
 import '../../Tracker/location00.dart';
 import '../../Tracker/trac.dart';
+import '../../Utils/daily_work_time_manager.dart';
 import '../../main.dart';
 import 'assets.dart';
 import 'menu_item.dart';
@@ -65,6 +67,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
     _initializeFromPersistentState();
     _startAutoSyncMonitoring();
     _startDistanceUpdater();
@@ -404,29 +407,29 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
                   return SizedBox(
                       width: 120, // Fixed width
                       height: 30,
-                  child:  ElevatedButton(
-                    onPressed: attendanceViewModel.isClockedIn.value
-                        ? null
-                        : () async => _handleClockIn(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Icon(Icons.play_arrow, color: Colors.white),
-                        Text("Clock In", style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15, // Text size
-                          fontWeight: FontWeight.w600, // Boldness
-                          letterSpacing: 0.5, // Space between letters
-                        ))
-                      ],
-                    ),
-                  )
+                      child:  ElevatedButton(
+                        onPressed: attendanceViewModel.isClockedIn.value
+                            ? null
+                            : () async => _handleClockIn(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueGrey,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Icon(Icons.play_arrow, color: Colors.white),
+                            Text("Clock In", style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15, // Text size
+                              fontWeight: FontWeight.w600, // Boldness
+                              letterSpacing: 0.5, // Space between letters
+                            ))
+                          ],
+                        ),
+                      )
                   );
                 }),
 
@@ -436,29 +439,29 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
                     width: 120, // Fixed width
                     height: 30,
                     child:  ElevatedButton(
-                    onPressed: attendanceViewModel.isClockedIn.value
-                        ? () async => _handleClockOut(context)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      onPressed: attendanceViewModel.isClockedIn.value
+                          ? () async => _handleClockOut(context)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Icon(Icons.stop, color: Colors.white),
-                        Text("Clock Out", style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15, // Text size
-                          fontWeight: FontWeight.w600, // Boldness
-                          letterSpacing: 0.5, // Space between letters
-                        ))
-                      ],
-                    ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Icon(Icons.stop, color: Colors.white),
+                          Text("Clock Out", style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15, // Text size
+                            fontWeight: FontWeight.w600, // Boldness
+                            letterSpacing: 0.5, // Space between letters
+                          ))
+                        ],
+                      ),
                     )
-                  );
+                );
                 }),
               ],
             ),
@@ -698,6 +701,9 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
         clockOutTime: clockOutTime,
         totalDistance: finalDistance,
       );
+      // ADD THIS HERE ↓↓↓
+      await DailyWorkTimeManager.recordClockOut(DateTime.now());
+
 
       final service = FlutterBackgroundService();
       service.invoke("stopService");
@@ -845,6 +851,8 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       debugPrint("📍 [TRAVEL TIME] Travel tracking started");
 
       await _updateCurrentDistance();
+      await DailyWorkTimeManager.recordClockIn(DateTime.now());
+
 
       debugPrint("✅ [CLOCK-IN] ===== COMPLETED SUCCESSFULLY =====");
 

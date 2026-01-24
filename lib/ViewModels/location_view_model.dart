@@ -1631,6 +1631,4 @@ class LocationViewModel extends GetxController {
     await prefs.remove('pendingAttendanceOutId');
     debugPrint("🧹 Sync status cleared");
   }
-
-
 }

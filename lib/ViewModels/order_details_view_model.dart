@@ -269,6 +269,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Databases/util.dart';
 import '../Models/ScreenModels/products_model.dart';
 import '../Models/order_details_model.dart';
+import '../Reports/daily_counter.dart';
 import '../Repositories/ScreenRepositories/products_repository.dart';
 import '../Screens/reconfirm_order_screen.dart';
 import 'ProductsViewModel.dart';
@@ -324,6 +325,26 @@ class OrderDetailsViewModel extends GetxController {
     await prefs.setString('currentuser_id', currentuser_id);
   }
 
+  // String generateNewOrderId(String user_id) {
+  //   String currentMonth = DateFormat('MMM').format(DateTime.now());
+  //
+  //   if (currentuser_id != user_id) {
+  //     orderDetailsSerialCounter = orderDetailsHighestSerial ?? 1;
+  //     currentuser_id = user_id;
+  //   }
+  //
+  //   if (orderDetailsCurrentMonth != currentMonth) {
+  //     orderDetailsSerialCounter = 1;
+  //     orderDetailsCurrentMonth = currentMonth;
+  //   }
+  //
+  //   String orderId = "OD-$user_id-$currentMonth-${orderDetailsSerialCounter.toString().padLeft(3, '0')}";
+  //
+  //   debugPrint('Generated OrderDetails ID: $orderId');
+  //
+  //   return orderId;
+
+
   String generateNewOrderId(String user_id) {
     String currentMonth = DateFormat('MMM').format(DateTime.now());
 
@@ -337,6 +358,7 @@ class OrderDetailsViewModel extends GetxController {
       orderDetailsCurrentMonth = currentMonth;
     }
 
+    // Use the current counter WITHOUT incrementing here
     String orderId = "OD-$user_id-$currentMonth-${orderDetailsSerialCounter.toString().padLeft(3, '0')}";
 
     debugPrint('Generated OrderDetails ID: $orderId');
@@ -442,7 +464,6 @@ class OrderDetailsViewModel extends GetxController {
 
     Get.to(() => ReconfirmOrderScreen(rows: productsToSave));
   }
-
   Future<void> confirmFilteredProducts() async {
     debugPrint("Running confirmFilteredProducts...");
     final productsToSave = filteredRows.where((row) {
@@ -464,13 +485,15 @@ class OrderDetailsViewModel extends GetxController {
       return;
     }
 
-    // GET THE SERIAL NUMBER ONCE FOR ALL PRODUCTS IN THIS ORDER
+    // GET INITIAL SERIAL NUMBER
     await _loadCounter();
-    dynamic orderSerial = generateNewOrderId(user_id);
 
     for (var product in productsToSave) {
+      // GENERATE UNIQUE ORDER DETAILS ID FOR EACH PRODUCT
+      dynamic orderSerial = generateNewOrderId(user_id);
+
       final orderDetailsModel = OrderDetailsModel(
-          order_details_id: orderSerial, // USE SAME SERIAL FOR ALL PRODUCTS IN THIS ORDER
+          order_details_id: orderSerial, // UNIQUE FOR EACH PRODUCT
           rate: product['Rate'].toString(),
           in_stock: product['In Stock'].toString(),
           amount: product['Amount'].toString(),
@@ -482,17 +505,40 @@ class OrderDetailsViewModel extends GetxController {
 
       try {
         await addReConfirmOrder(orderDetailsModel);
+
+        // INCREMENT COUNTER AFTER EACH PRODUCT
+        orderDetailsSerialCounter++;
+        await _saveCounter();
+
       } catch (e) {
         debugPrint("Error saving OrderDetailsModel: $e");
       }
     }
 
-    // INCREMENT COUNTER ONLY AFTER ALL PRODUCTS ARE SAVED
-    orderDetailsSerialCounter++;
-    await _saveCounter();
-
+    // Post to API
     // Post to API
     await orderDetailsRepository.postDataFromDatabaseToAPI();
+
+// ✅ Track daily orders
+//     final orderCounter = DailyCounter(
+//       countKey: "daily_order_count",
+//       dateKey: "daily_order_date",
+//       amountKey: "daily_order_amount",
+//     );
+
+    // When an order is placed, increment count & total amount
+    await DailyCounter.increaseOrder(
+      count: productsToSave.length, // optional, default = 1
+      amount: productsToSave.fold<double>(
+        0.0,
+            (sum, item) => sum + (item['Amount'] ?? 0.0),
+      ),
+    );
+
+// To get today's order stats
+    int totalOrders = await DailyCounter.getTodayOrderCount();
+    double totalAmount = await DailyCounter.getTodayOrderAmount();
+
 
     Get.snackbar(
       "Success",
@@ -500,6 +546,63 @@ class OrderDetailsViewModel extends GetxController {
       snackPosition: SnackPosition.BOTTOM,
     );
   }
+  // Future<void> confirmFilteredProducts() async {
+  //   debugPrint("Running confirmFilteredProducts...");
+  //   final productsToSave = filteredRows.where((row) {
+  //     final quantity = row['Enter Qty'];
+  //     return quantity != null && quantity != 0;
+  //   }).toList();
+  //
+  //   // Check if there are any products to save
+  //   if (productsToSave.isEmpty) {
+  //     debugPrint("No products to save. Navigation not performed.");
+  //     Get.snackbar(
+  //       "Error",
+  //       "No products to save. Please enter quantities.",
+  //       snackPosition: SnackPosition.BOTTOM,
+  //       backgroundColor: Colors.red,
+  //       colorText: Colors.white,
+  //       duration: Duration(seconds: 3),
+  //     );
+  //     return;
+  //   }
+  //
+  //   // GET THE SERIAL NUMBER ONCE FOR ALL PRODUCTS IN THIS ORDER
+  //   await _loadCounter();
+  //   dynamic orderSerial = generateNewOrderId(user_id);
+  //
+  //   for (var product in productsToSave) {
+  //     final orderDetailsModel = OrderDetailsModel(
+  //         order_details_id: orderSerial, // USE SAME SERIAL FOR ALL PRODUCTS IN THIS ORDER
+  //         rate: product['Rate'].toString(),
+  //         in_stock: product['In Stock'].toString(),
+  //         amount: product['Amount'].toString(),
+  //         product: product['Product'],
+  //         user_id: user_id.toString(),
+  //         quantity: product['Enter Qty'].toString(),
+  //         order_master_id: order_master_id
+  //     );
+  //
+  //     try {
+  //       await addReConfirmOrder(orderDetailsModel);
+  //     } catch (e) {
+  //       debugPrint("Error saving OrderDetailsModel: $e");
+  //     }
+  //   }
+  //
+  //   // INCREMENT COUNTER ONLY AFTER ALL PRODUCTS ARE SAVED
+  //   orderDetailsSerialCounter++;
+  //   await _saveCounter();
+  //
+  //   // Post to API
+  //   await orderDetailsRepository.postDataFromDatabaseToAPI();
+  //
+  //   Get.snackbar(
+  //     "Success",
+  //     "Form submitted successfully!",
+  //     snackPosition: SnackPosition.BOTTOM,
+  //   );
+  // }
 
   Future<void> fetchAllReConfirmOrder() async {
     var reconfirmorder = await orderDetailsRepository.getReConfirmOrder();

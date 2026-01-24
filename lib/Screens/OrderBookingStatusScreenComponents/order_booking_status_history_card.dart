@@ -65,7 +65,7 @@ class OrderBookingStatusHistoryCard extends StatelessWidget {
   Widget _buildSearchBar(TextEditingController searchController) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: Colors.blueGrey.shade50,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(12),
         ),
@@ -74,7 +74,7 @@ class OrderBookingStatusHistoryCard extends StatelessWidget {
       child: TextField(
         controller: searchController,
         decoration: InputDecoration(
-          prefixIcon: const Icon(Icons.search, color: Colors.blue),
+          prefixIcon: const Icon(Icons.search, color: Colors.blueGrey),
           hintText: 'Search products...',
           hintStyle: const TextStyle(fontSize: 16, color: Colors.grey),
           filled: true,
@@ -89,7 +89,7 @@ class OrderBookingStatusHistoryCard extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Colors.blue, width: 2),
+            borderSide: const BorderSide(color: Colors.blueGrey, width: 2),
           ),
         ),
       ),
@@ -103,11 +103,11 @@ class OrderBookingStatusHistoryCard extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.vertical,
         child: DataTable(
-          headingRowColor: MaterialStateProperty.resolveWith((states) => Colors.blue.shade100),
+          headingRowColor: MaterialStateProperty.resolveWith((states) => Colors.blueGrey.shade100),
           dataRowColor: MaterialStateProperty.resolveWith(
                 (states) {
               return states.contains(MaterialState.selected)
-                  ? Colors.blue.shade50
+                  ? Colors.blueGrey.shade50
                   : Colors.grey.shade50;
             },
           ),
@@ -299,7 +299,7 @@ class OrderBookingStatusHistoryCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.blue,
+                  color: Colors.blueGrey,
                   decoration: TextDecoration.underline,
                 ),
               ),

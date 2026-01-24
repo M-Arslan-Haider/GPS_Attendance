@@ -150,7 +150,7 @@ class FormRow extends StatelessWidget {
           Align(
             alignment: Alignment.center,
             child: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
+              icon: const Icon(Icons.delete, color: Colors.blueGrey),
               onPressed: () => returnFormDetailsViewModel.removeRow(index),
             ),
           ),

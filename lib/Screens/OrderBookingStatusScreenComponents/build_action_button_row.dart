@@ -290,12 +290,12 @@ Widget buildActionButtonsRow(OrderBookingStatusViewModel viewModel) {
     children: [
       ElevatedButton(
         onPressed: () => handleButtonAction('Order PDF'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
         child: const Text('Order PDF', style: TextStyle(color: Colors.white, fontSize: 15)),
       ),
       ElevatedButton(
         onPressed: () => handleButtonAction('Products PDF'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
         child: const Text('Products PDF', style: TextStyle(color: Colors.white, fontSize: 15)),
       ),
     ],

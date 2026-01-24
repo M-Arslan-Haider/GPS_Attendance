@@ -319,15 +319,19 @@ class _CustomDropdownState extends State<CustomDropdownSecond> {
                               displayText = selectedItem;
                             }
 
-                            return Text(
-                              displayText,
-                              style: widget.textStyle ?? const TextStyle(
-                                fontSize: 16,
-                                color: Colors.black,
-                                fontWeight: FontWeight.w500,
+                            return Center(
+                              child: Text(
+                                displayText,
+                                textAlign: TextAlign.center,
+                                style: widget.textStyle ?? const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             );
+
                           },
 
                           // On changed

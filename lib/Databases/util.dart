@@ -104,7 +104,7 @@ const locationClusters = 'locationClusters';
 //   }
 //   return false;
 // }
-String  version="v0.1.2";
+String  version="v0.1.3";
 dynamic shopAddress = "";
 
 Future<bool> isNetworkAvailable() async {

@@ -827,7 +827,7 @@ class _RSMHomepageState extends State<RSMHomepage> {
     return WillPopScope(
       onWillPop: () async => false,
       child: Scaffold(
-        backgroundColor: Colors.blue.shade50,
+        backgroundColor: Colors.blueGrey.shade50,
         body: SafeArea(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padding, vertical: padding / 2),
@@ -842,7 +842,7 @@ class _RSMHomepageState extends State<RSMHomepage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blueGrey.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -861,7 +861,7 @@ class _RSMHomepageState extends State<RSMHomepage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blueGrey.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -877,7 +877,7 @@ class _RSMHomepageState extends State<RSMHomepage> {
                 ),
 
                 // SizedBox(height: padding / 2),
-                SizedBox(height: padding * 0),
+                SizedBox(height: padding * 1),
 
                 // 🧩 Grid Menu
                 Expanded(

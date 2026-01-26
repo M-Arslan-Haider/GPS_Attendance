@@ -4,7 +4,7 @@ import '../../Utils/daily_work_time_manager.dart'; // Keep your manager import
 class DailyTimeCircularCard extends StatelessWidget {
   const DailyTimeCircularCard({super.key});
 
-  final Duration targetWorkTime = const Duration(hours: 8);
+  final Duration targetWorkTime = const Duration(hours: 12);
 
   @override
   Widget build(BuildContext context) {

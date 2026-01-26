@@ -361,7 +361,8 @@ class Config {
   static String get getApiUrlAttendenceScreenReport => remoteConfig.getString('getUrlAttendenceScreenReport');
   static String get getApiUrlOrderReport => remoteConfig.getString('getUrlOrderReport');
   static String get getApiUrlAddShopReport => remoteConfig.getString('getUrlAddShopReport');
-
+  static String get getApiUrlRecoveryFormReport => remoteConfig.getString('getUrlRecoveryFormReport');
+  static String get getApiUrlDispatchReport => remoteConfig.getString('getUrlDispatchReport');
 
 
 }

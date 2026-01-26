@@ -2380,7 +2380,7 @@
 // // //                         child: _buildTinyStatCard(
 // // //                           icon: Icons.book_online_outlined,
 // // //                           label: "Bookings",
-// // //                           value: totalOrders.toString(),
+// // //
 // // //                           color: Colors.teal,
 // // //                         ),
 // // //                       ),
@@ -4247,7 +4247,6 @@
 //   Future<void> onDestroy(DateTime timestamp, bool restart) async {}
 // }
 
-
 import 'package:auto_route/annotations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -4265,8 +4264,10 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../LocatioPoints/ravelTimeViewModel.dart';
 import '../Reports/add_shop_screen/add_screen_report.dart';
 import '../Reports/attendence_report/attendence_report_screen.dart';
-import '../Reports/daily_counter.dart';
+
+import '../Reports/dispatch_report/dispatch_report_screen.dart';
 import '../Reports/order_detail_report/OrderReportScreen.dart';
+import '../Reports/recovery_report/recovery_report_screen.dart';
 import '../Reports/shop_visit_report/shop_visit_report_screen.dart';
 import '../Utils/ForceUpdateService.dart';
 import '../ViewModels/ScreenViewModels/signup_view_model.dart';
@@ -4283,7 +4284,7 @@ import 'package:order_booking_app/ViewModels/attendance_out_view_model.dart';
 import 'package:order_booking_app/ViewModels/attendance_view_model.dart';
 import 'package:order_booking_app/ViewModels/order_master_view_model.dart';
 import 'package:order_booking_app/ViewModels/recovery_form_view_model.dart';
-import 'HomeScreenComponents/today_stats_record.dart';
+import 'HomeScreenComponents/Today Stats/today_stats_record.dart';
 import 'HomeScreenComponents/work_time_progress_card.dart';
 import 'leave_form_screen.dart';
 import 'order_booking_status_screen.dart';
@@ -4323,16 +4324,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     _retrieveSavedValues();
 
-    addShopViewModel.fetchAllAddShop();
-    shopVisitViewModel.fetchAllShopVisit();
-    shopVisitViewModel.fetchTotalShopVisit();
+    addShopViewModel.fetchAllAddShop(); // → Shops
+    shopVisitViewModel.fetchAllShopVisit(); // → Visit list
+    shopVisitViewModel.fetchTotalShopVisit(); // → Visit COUNT (dashboard)
     shopVisitDetailsViewModel.initializeProductData();
-    orderMasterViewModel.fetchAllOrderMaster();
-    orderMasterViewModel.fetchTotalDispatched();
-    recoveryFormViewModel.fetchAllRecoveryForm();
-    returnFormViewModel.fetchAllReturnForm();
-    attendanceViewModel.fetchAllAttendance();
-    attendanceOutViewModel.fetchAllAttendanceOut();
+
+    orderMasterViewModel.fetchAllOrderMaster(); // → Orders
+    orderMasterViewModel.fetchTotalDispatched(); // → Dispatched
+
+    recoveryFormViewModel.fetchAllRecoveryForm(); // → Recovery
+    returnFormViewModel.fetchAllReturnForm(); // → Returns
+
+    attendanceViewModel.fetchAllAttendance(); // → Attendance IN
+    attendanceOutViewModel.fetchAllAttendanceOut(); // (optional OUT)
 
     FlutterForegroundTask.startService(
       notificationTitle: 'Clock Running',
@@ -4340,33 +4344,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       callback: startCallback,
     );
   }
-
-
-
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _retrieveSavedValues();
-  //
-  //   // Fetch data
-  //   addShopViewModel.fetchAllAddShop();
-  //   shopVisitViewModel.fetchAllShopVisit();
-  //   shopVisitViewModel.fetchTotalShopVisit();
-  //   shopVisitDetailsViewModel.initializeProductData();
-  //   orderMasterViewModel.fetchAllOrderMaster();
-  //   orderMasterViewModel.fetchTotalDispatched();
-  //   recoveryFormViewModel.fetchAllRecoveryForm();
-  //   returnFormViewModel.fetchAllReturnForm();
-  //   attendanceViewModel.fetchAllAttendance();
-  //   attendanceOutViewModel.fetchAllAttendanceOut();
-  //
-  //   // Foreground service
-  //   FlutterForegroundTask.startService(
-  //     notificationTitle: 'Clock Running',
-  //     notificationText: 'Tracking time and location...',
-  //     callback: startCallback,
-  //   );
-  // }
 
   Future<void> _retrieveSavedValues() async {
     final prefs = await SharedPreferences.getInstance();
@@ -4394,8 +4371,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           body: LayoutBuilder(
             builder: (context, constraints) {
               // Responsive horizontal padding
-              final horizontalPadding = constraints.maxWidth < 400 ? 12.0 : 20.0;
-              final spacingBetweenRows = constraints.maxWidth < 400 ? 12.0 : 15.0;
+              final horizontalPadding =
+                  constraints.maxWidth < 400 ? 12.0 : 20.0;
+              final spacingBetweenRows =
+                  constraints.maxWidth < 400 ? 12.0 : 15.0;
 
               return SingleChildScrollView(
                 child: Column(
@@ -4404,18 +4383,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     _buildHeader(),
                     const SizedBox(height: 10),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: horizontalPadding),
                       child: TimerCard(),
                     ),
                     SizedBox(height: spacingBetweenRows),
                     _buildQuickActions(horizontalPadding: horizontalPadding),
                     SizedBox(height: 20),
                     TodayStatsCard(),
-                    SizedBox(height: 20,),
-                    _buildPerformanceOverview(horizontalPadding: horizontalPadding),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    _buildPerformanceOverview(
+                        horizontalPadding: horizontalPadding),
                     const SizedBox(height: 20),
                     DailyTimeCircularCard(),
-                    SizedBox(height: 20,),
+                    SizedBox(
+                      height: 20,
+                    ),
                     _buildFooter(),
                     const SizedBox(height: 24),
                   ],
@@ -4651,6 +4636,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 10),
           Obx(() {
+            // final totalShops = addShopViewModel.allAddShop.length;
+            // final totalVisits = shopVisitViewModel.apiShopVisitsCount.value;
+            // final totalOrders = orderMasterViewModel.allOrderMaster.length;
+            // final dispatched = orderMasterViewModel.apiDispatchedCount.value;
+            // final totalRecovery = recoveryFormViewModel.allRecoveryForm.length;
+            // final totalReturns = returnFormViewModel.allReturnForm.length;
+            // final attendanceIn = attendanceViewModel.allAttendance.length;
             final totalShops = addShopViewModel.allAddShop.length;
             final totalVisits = shopVisitViewModel.apiShopVisitsCount.value;
             final totalOrders = orderMasterViewModel.allOrderMaster.length;
@@ -4658,6 +4650,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             final totalRecovery = recoveryFormViewModel.allRecoveryForm.length;
             final totalReturns = returnFormViewModel.allReturnForm.length;
             final attendanceIn = attendanceViewModel.allAttendance.length;
+            // final totalBookings  = bookingViewModel.allBookings.length; // agar booking module hai
 
             return SizedBox(
               height: 180, // FIXED HEIGHT as requested
@@ -4685,34 +4678,81 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     childAspectRatio: 1.0,
                   ),
                   children: [
+                    // _statGridItem(
+                    //   "Shops",
+                    //   totalVisits,
+                    //   Icons.store_outlined,
+                    //   onTap: () => Get.to(() => AddShopReportScreen()),
+                    // ),
+                    // _statGridItem(
+                    //   "Visits",
+                    //   totalVisits,
+                    //   Icons.directions_walk_outlined,
+                    //   onTap: () => Get.to(() => ShopVisitReportDashboard()),
+                    // ),
+                    // _statGridItem(
+                    //   "Orders",
+                    //   totalOrders,
+                    //   Icons.shopping_cart_outlined,
+                    //   onTap: () => Get.to(() => OrderReportScreen()),
+                    // ),
+                    // _statGridItem("Dispatched", dispatched, Icons.local_shipping_outlined),
+                    // _statGridItem("Returns", totalReturns, Icons.assignment_return_outlined),
+                    // _statGridItem("Recovery", totalRecovery, Icons.attach_money_outlined),
+                    // _statGridItem(
+                    //   "Attendance",
+                    //   totalOrders,
+                    //   Icons.punch_clock_outlined,
+                    //   onTap: () => Get.to(() => AttendanceRecordScreen()),
+                    // ),
+                    // _statGridItem("Bookings", attendanceIn, Icons.book),
+
                     _statGridItem(
                       "Shops",
-                      totalVisits,
+                      totalShops,
                       Icons.store_outlined,
                       onTap: () => Get.to(() => AddShopReportScreen()),
                     ),
+
                     _statGridItem(
                       "Visits",
                       totalVisits,
                       Icons.directions_walk_outlined,
                       onTap: () => Get.to(() => ShopVisitReportDashboard()),
                     ),
+
                     _statGridItem(
                       "Orders",
                       totalOrders,
                       Icons.shopping_cart_outlined,
                       onTap: () => Get.to(() => OrderReportScreen()),
                     ),
-                    _statGridItem("Dispatched", dispatched, Icons.local_shipping_outlined),
-                    _statGridItem("Returns", totalReturns, Icons.assignment_return_outlined),
-                    _statGridItem("Recovery", totalRecovery, Icons.attach_money_outlined),
+
+                    _statGridItem("Dispatched", dispatched,
+                        Icons.local_shipping_outlined,
+                      onTap: () => Get.to(() => DispatchOrdersDashboard()),
+                    ),
+
+                    _statGridItem("Returns", totalReturns,
+                        Icons.assignment_return_outlined),
+
+                    _statGridItem(
+                        "Recovery", totalRecovery, Icons.attach_money_outlined,
+                        onTap: () => Get.to(() => RecoveryFormDashboard()),
+                    ),
+
                     _statGridItem(
                       "Attendance",
-                      totalOrders,
+                      attendanceIn,
                       Icons.punch_clock_outlined,
                       onTap: () => Get.to(() => AttendanceRecordScreen()),
                     ),
-                    _statGridItem("Bookings", attendanceIn, Icons.book),
+
+                    _statGridItem(
+                      "Bookings",
+                      totalOrders,
+                      Icons.book,
+                    ),
                   ],
                 ),
               ),
@@ -4723,7 +4763,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _statGridItem(String label, int value, IconData icon, {VoidCallback? onTap}) {
+  Widget _statGridItem(String label, int value, IconData icon,
+      {VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -4792,15 +4833,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildFooter() {
-    return const Column(
+    return Column(
       children: [
         Text(
-          'Version 0.1.2',
-          style: TextStyle(
-            fontStyle: FontStyle.italic,
-            fontSize: 13,
-            color: Colors.blueGrey,
+          "$version",
+          style: const TextStyle(
+            // fontSize: fontSize - 1,
+            color: Colors.black54,
             fontWeight: FontWeight.w500,
+            fontStyle: FontStyle.italic,
           ),
         ),
       ],
@@ -4810,7 +4851,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _showClockInRequiredDialog() {
     Get.defaultDialog(
       title: "Clock In Required",
-      titleStyle: const TextStyle(fontWeight: FontWeight.w600, color: Colors.blueGrey),
+      titleStyle:
+          const TextStyle(fontWeight: FontWeight.w600, color: Colors.blueGrey),
       middleText: "Please start your work timer first.",
       middleTextStyle: TextStyle(color: Colors.blueGrey.shade600),
       textConfirm: "OK",

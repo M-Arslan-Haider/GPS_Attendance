@@ -1,5 +1,5 @@
 import 'dart:io';
-import '../Reports/daily_counter.dart';
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
@@ -20,6 +20,7 @@ import '../Models/shop_visit_model.dart';
 import '../Repositories/ScreenRepositories/products_repository.dart';
 import '../Repositories/shop_visit_repository.dart';
 import '../Repositories/add_shop_repository.dart';
+import '../Screens/HomeScreenComponents/Today Stats/daily_counter.dart';
 import '../Screens/order_booking_screen.dart';
 import '../Services/ApiServices/api_service.dart';
 import '../Services/FirebaseServices/firebase_remote_config.dart';
@@ -400,6 +401,7 @@ class ShopVisitViewModel extends GetxController {
       await shopVisitDetailsViewModel.saveFilteredProducts();
       await shopvisitRepository.postDataFromDatabaseToAPI();
 
+      ///Daily count
       await DailyCounter.increaseShopVisit();
       int visits = await DailyCounter.getTodayShopVisits();
 

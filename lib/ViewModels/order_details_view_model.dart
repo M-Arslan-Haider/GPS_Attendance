@@ -269,8 +269,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Databases/util.dart';
 import '../Models/ScreenModels/products_model.dart';
 import '../Models/order_details_model.dart';
-import '../Reports/daily_counter.dart';
+
 import '../Repositories/ScreenRepositories/products_repository.dart';
+import '../Screens/HomeScreenComponents/Today Stats/daily_counter.dart';
 import '../Screens/reconfirm_order_screen.dart';
 import 'ProductsViewModel.dart';
 

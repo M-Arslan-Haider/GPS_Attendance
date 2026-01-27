@@ -139,11 +139,11 @@
 //               ),
 //             ),
 //           ),
-//           iconTheme: const IconThemeData(color: Colors.blue),
+//           iconTheme: const IconThemeData(color: Colors.blueGrey),
 //           automaticallyImplyLeading: false,
 //           actions: [
 //             IconButton(
-//               icon: const Icon(Icons.refresh, color: Colors.blue),
+//               icon: const Icon(Icons.refresh, color: Colors.blueGrey),
 //               onPressed: () {
 //                 // _handleRefresh();
 //               },
@@ -177,7 +177,7 @@
 //                     context,
 //                     cardInfo['title'] as String,
 //                     cardInfo['icon'] as IconData,
-//                     Colors.blue,
+//                     Colors.blueGrey,
 //                   );
 //                 },
 //               ),
@@ -472,7 +472,7 @@
 //         return false;
 //       },
 //       child: Scaffold(
-//         backgroundColor: Colors.blue.shade50,
+//         backgroundColor: Colors.blueGrey.shade50,
 //         body: SafeArea(
 //           child: Padding(
 //             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 15.0),
@@ -487,7 +487,7 @@
 //                     borderRadius: BorderRadius.circular(16),
 //                     boxShadow: [
 //                       BoxShadow(
-//                         color: Colors.blue.withOpacity(0.1),
+//                         color: Colors.blueGrey.withOpacity(0.1),
 //                         blurRadius: 10,
 //                         offset: const Offset(0, 3),
 //                       ),
@@ -512,7 +512,7 @@
 //                     borderRadius: BorderRadius.circular(16),
 //                     boxShadow: [
 //                       BoxShadow(
-//                         color: Colors.blue.withOpacity(0.1),
+//                         color: Colors.blueGrey.withOpacity(0.1),
 //                         blurRadius: 10,
 //                         offset: const Offset(0, 3),
 //                       ),
@@ -701,6 +701,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../Databases/dp_helper.dart';
 import '../../Databases/util.dart';
+import '../../Utils/ForceUpdateService.dart';
 import '../../ViewModels/add_shop_view_model.dart';
 import '../../ViewModels/attendance_out_view_model.dart';
 import '../../ViewModels/attendance_view_model.dart';
@@ -732,17 +733,35 @@ class NSMHomepageState extends State<NSMHomepage> {
   late final attendanceOutViewModel = Get.put(AttendanceOutViewModel());
   late StreamSubscription<ServiceStatus> locationServiceStatusStream;
 
+
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ForceUpdateService.check(context);
+    });
+
     Get.put(UpdateFunctionViewModel());
     Get.put(LocationViewModel());
     addShopViewModel.fetchAllAddShop();
     attendanceViewModel.fetchAllAttendance();
     attendanceOutViewModel.fetchAllAttendanceOut();
     _retrieveSavedValues();
-    checkForUpdate();
   }
+
+
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   Get.put(UpdateFunctionViewModel());
+  //   Get.put(LocationViewModel());
+  //   addShopViewModel.fetchAllAddShop();
+  //   attendanceViewModel.fetchAllAttendance();
+  //   attendanceOutViewModel.fetchAllAttendanceOut();
+  //   _retrieveSavedValues();
+  //   checkForUpdate();
+  // }
 
   @override
   void dispose() {
@@ -783,7 +802,7 @@ class NSMHomepageState extends State<NSMHomepage> {
     return WillPopScope(
       onWillPop: () async => false,
       child: Scaffold(
-        backgroundColor: Colors.blue.shade50,
+        backgroundColor: Colors.blueGrey.shade50,
         body: SafeArea(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: paddingValue, vertical: 15),
@@ -798,7 +817,7 @@ class NSMHomepageState extends State<NSMHomepage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blueGrey.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -821,7 +840,7 @@ class NSMHomepageState extends State<NSMHomepage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blueGrey.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -846,15 +865,15 @@ class NSMHomepageState extends State<NSMHomepage> {
                     mainAxisSpacing: 15,
                     children: [
                       _buildModernCard(
-                          context, "SHOP VISIT", Icons.store_mall_directory_rounded, Colors.purple, iconSize, textSize),
+                          context, "SHOP VISIT", Icons.store_mall_directory_rounded, Colors.blueGrey, iconSize, textSize),
                       _buildModernCard(
-                          context, "BOOKERS STATUS", Icons.people_alt_rounded, Colors.teal.shade700, iconSize, textSize),
+                          context, "BOOKERS STATUS", Icons.people_alt_rounded, Colors.blueGrey.shade700, iconSize, textSize),
                       _buildModernCard(
-                          context, "SHOPS DETAILS", Icons.info_outline_rounded, Colors.teal.shade700, iconSize, textSize),
+                          context, "SHOPS DETAILS", Icons.info_outline_rounded, Colors.blueGrey.shade700, iconSize, textSize),
                       _buildModernCard(
-                          context, "BOOKERS ORDER DETAILS", Icons.receipt_long_rounded, Colors.purple, iconSize, textSize),
+                          context, "BOOKERS ORDER DETAILS", Icons.receipt_long_rounded, Colors.blueGrey, iconSize, textSize),
                       _buildModernCard(
-                          context, "LOCATION", Icons.location_on_rounded, Colors.orange, iconSize, textSize),
+                          context, "LOCATION", Icons.location_on_rounded, Colors.blueGrey, iconSize, textSize),
                     ],
                   ),
                 ),

@@ -123,7 +123,7 @@
 //             elevation: 1, // Add a subtle shadow
 //             actions: [
 //               IconButton(
-//                 icon: const Icon(Icons.refresh, color: Colors.blue),
+//                 icon: const Icon(Icons.refresh, color: Colors.blueGrey),
 //                 onPressed: () {
 //                   // _handleRefresh();
 //                   // Add reload functionality here
@@ -158,7 +158,7 @@
 //                         context,
 //                         cardInfo['title'] as String,
 //                         cardInfo['icon'] as IconData,
-//                         Colors.blue,
+//                         Colors.blueGrey,
 //                       );
 //                     },
 //                   ),
@@ -437,7 +437,7 @@
 //         return false;
 //       },
 //       child: Scaffold(
-//         backgroundColor: Colors.blue.shade50,
+//         backgroundColor: Colors.blueGrey.shade50,
 //         body: SafeArea(
 //           child: Padding(
 //             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 15.0),
@@ -452,7 +452,7 @@
 //                     borderRadius: BorderRadius.circular(16),
 //                     boxShadow: [
 //                       BoxShadow(
-//                         color: Colors.blue.withOpacity(0.1),
+//                         color: Colors.blueGrey.withOpacity(0.1),
 //                         blurRadius: 10,
 //                         offset: const Offset(0, 3),
 //                       ),
@@ -529,7 +529,7 @@
 //                     borderRadius: BorderRadius.circular(16),
 //                     boxShadow: [
 //                       BoxShadow(
-//                         color: Colors.blue.withOpacity(0.1),
+//                         color: Colors.blueGrey.withOpacity(0.1),
 //                         blurRadius: 10,
 //                         offset: const Offset(0, 3),
 //                       ),
@@ -557,7 +557,7 @@
 //                         context,
 //                         "SHOP VISIT",
 //                         Icons.store_mall_directory_rounded,
-//                         Colors.blueAccent,
+//                         Colors.blueGreyAccent,
 //                       ),
 //                       _buildModernCard(
 //                         context,
@@ -737,6 +737,7 @@ import 'package:order_booking_app/Screens/leave_form_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:location/location.dart' as loc;
 import '../../Databases/dp_helper.dart';
+import '../../Utils/ForceUpdateService.dart';
 import '../../ViewModels/add_shop_view_model.dart';
 import '../../ViewModels/attendance_out_view_model.dart';
 import '../../ViewModels/attendance_view_model.dart';
@@ -763,19 +764,41 @@ class _SMHomepageState extends State<SMHomepage> {
 
   late StreamSubscription<ServiceStatus> locationServiceStatusStream;
 
+
   @override
   void initState() {
     super.initState();
+
+    // 🔒 Force update check
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ForceUpdateService.check(context);
+    });
+
     Get.put(UpdateFunctionViewModel());
     Get.put(LocationViewModel());
     Get.put(AttendanceViewModel());
     Get.put(AttendanceOutViewModel());
+
     addShopViewModel.fetchAllAddShop();
     attendanceViewModel.fetchAllAttendance();
     attendanceOutViewModel.fetchAllAttendanceOut();
     _retrieveSavedValues();
-    checkForUpdate();
   }
+
+  
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   Get.put(UpdateFunctionViewModel());
+  //   Get.put(LocationViewModel());
+  //   Get.put(AttendanceViewModel());
+  //   Get.put(AttendanceOutViewModel());
+  //   addShopViewModel.fetchAllAddShop();
+  //   attendanceViewModel.fetchAllAttendance();
+  //   attendanceOutViewModel.fetchAllAttendanceOut();
+  //   _retrieveSavedValues();
+  //   checkForUpdate();
+  // }
 
   @override
   void dispose() {
@@ -812,7 +835,7 @@ class _SMHomepageState extends State<SMHomepage> {
     return WillPopScope(
       onWillPop: () async => false,
       child: Scaffold(
-        backgroundColor: Colors.blue.shade50,
+        backgroundColor: Colors.blueGrey.shade50,
         body: SafeArea(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padding, vertical: padding / 1.5),
@@ -826,7 +849,7 @@ class _SMHomepageState extends State<SMHomepage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blueGrey.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -845,7 +868,7 @@ class _SMHomepageState extends State<SMHomepage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.blueGrey.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -867,11 +890,11 @@ class _SMHomepageState extends State<SMHomepage> {
                     mainAxisSpacing: 15,
                     childAspectRatio: isTablet ? 1.2 : 1,
                     children: [
-                      _buildModernCard(context, "SHOP VISIT", Icons.store_mall_directory_rounded, Colors.blueAccent, iconSize, fontSize),
-                      _buildModernCard(context, "BOOKERS STATUS", Icons.people_alt_rounded, Colors.indigo, iconSize, fontSize),
-                      _buildModernCard(context, "SHOPS DETAILS", Icons.info_outline_rounded, Colors.teal, iconSize, fontSize),
-                      _buildModernCard(context, "BOOKERS ORDER DETAILS", Icons.receipt_long_rounded, Colors.deepPurple, iconSize, fontSize),
-                      _buildModernCard(context, "LOCATION", Icons.location_on_rounded, Colors.orange, iconSize, fontSize),
+                      _buildModernCard(context, "SHOP VISIT", Icons.store_mall_directory_rounded, Colors.blueGrey, iconSize, fontSize),
+                      _buildModernCard(context, "BOOKERS STATUS", Icons.people_alt_rounded, Colors.blueGrey, iconSize, fontSize),
+                      _buildModernCard(context, "SHOPS DETAILS", Icons.info_outline_rounded, Colors.blueGrey, iconSize, fontSize),
+                      _buildModernCard(context, "BOOKERS ORDER DETAILS", Icons.receipt_long_rounded, Colors.blueGrey, iconSize, fontSize),
+                      _buildModernCard(context, "LOCATION", Icons.location_on_rounded, Colors.blueGrey, iconSize, fontSize),
                       _buildModernCard(context, "LEAVE", Icons.event_busy, Colors.blueGrey, iconSize, fontSize),
                     ],
                   ),

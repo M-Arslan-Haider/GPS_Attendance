@@ -167,7 +167,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
               });
             }
           },
-          activeColor: Colors.blue,
+          activeColor: Colors.blueGrey,
         ),
         const Text(
           'GPS Enabled',
@@ -216,9 +216,13 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Shop Visit Form'),
-        backgroundColor: Colors.blue,
+        title: const Text('Shop Visit Form', style: TextStyle(color: Colors.white),),
+        backgroundColor: Colors.blueGrey,
         elevation: 0,
+        // 👇 Back arrow color
+        iconTheme: const IconThemeData(
+          color: Colors.white,
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -280,7 +284,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.2),
+            color: Colors.blueGrey.withOpacity(0.2),
             spreadRadius: 2,
             blurRadius: 8,
           ),
@@ -292,7 +296,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
           controller: controller,
           readOnly: readOnly,
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: Colors.blue),
+            prefixIcon: Icon(icon, color: Colors.blueGrey),
             labelText: label,
             border: InputBorder.none,
           ),
@@ -310,7 +314,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.2),
+            color: Colors.blueGrey.withOpacity(0.2),
             spreadRadius: 2,
             blurRadius: 8,
           ),
@@ -321,7 +325,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
         child: TextField(
           controller: TextEditingController(text: currentDate),
           decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.calendar_today, color: Colors.blue),
+            prefixIcon: Icon(Icons.calendar_today, color: Colors.blueGrey),
             labelText: 'Date',
             border: InputBorder.none,
           ),
@@ -342,7 +346,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.2),
+            color: Colors.blueGrey.withOpacity(0.2),
             spreadRadius: 2,
             blurRadius: 8,
           ),
@@ -355,7 +359,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
             showSearchBox: true,
             searchFieldProps: TextFieldProps(
               decoration: InputDecoration(
-                prefixIcon: Icon(Icons.search, color: Colors.blue),
+                prefixIcon: Icon(Icons.search, color: Colors.blueGrey),
                 hintText: 'Search...',
                 border: InputBorder.none,
               ),
@@ -364,7 +368,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
           items: items,
           dropdownDecoratorProps: DropDownDecoratorProps(
             dropdownSearchDecoration: InputDecoration(
-              prefixIcon: Icon(icon, color: Colors.blue),
+              prefixIcon: Icon(icon, color: Colors.blueGrey),
               labelText: label,
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -389,7 +393,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.2),
+            color: Colors.blueGrey.withOpacity(0.2),
             spreadRadius: 2,
             blurRadius: 8,
           ),
@@ -403,7 +407,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
             const Text(
               'Feedback or Note',
               style: TextStyle(
-                color: Colors.blue,
+                color: Colors.blueGrey,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -427,7 +431,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
                 },
                 child: const Text(
                   'Clear',
-                  style: TextStyle(color: Colors.blue),
+                  style: TextStyle(color: Colors.blueGrey),
                 ),
               ),
             ),
@@ -447,7 +451,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
             const SnackBar(
               content: Text('Form Submitted Successfully'),
               behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.blueGrey,
             ),
           );
           Navigator.pop(context);
@@ -458,7 +462,7 @@ class NSMShopVisitPageState extends State<NSMShopVisitPage> {
         // }
         , // Disable button if not enabled
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue,
+          backgroundColor: Colors.blueGrey,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),

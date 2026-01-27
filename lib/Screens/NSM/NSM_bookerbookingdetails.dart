@@ -68,7 +68,7 @@ class _NSMBookingBookPageState extends State<NSMBookingBookPage> {
       appBar: AppBar(
         title: Center(child: Text('Booker Order Detail', style: TextStyle(fontFamily: 'avenir next', fontSize: 17 , color: Colors.black))),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue,
+        foregroundColor: Colors.blueGrey,
         elevation: 0,
       ),
       body: Padding(
@@ -82,7 +82,7 @@ class _NSMBookingBookPageState extends State<NSMBookingBookPage> {
               decoration: InputDecoration(
                 labelText: "Select Shop",
                 filled: true,
-                fillColor: Colors.blue.withOpacity(0.1),
+                fillColor: Colors.blueGrey.withOpacity(0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -107,7 +107,7 @@ class _NSMBookingBookPageState extends State<NSMBookingBookPage> {
               decoration: InputDecoration(
                 labelText: "Select Order",
                 filled: true,
-                fillColor: Colors.blue.withOpacity(0.1),
+                fillColor: Colors.blueGrey.withOpacity(0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -136,7 +136,7 @@ class _NSMBookingBookPageState extends State<NSMBookingBookPage> {
                     decoration: InputDecoration(
                       labelText: "Start Date",
                       filled: true,
-                      fillColor: Colors.blue.withOpacity(0.1),
+                      fillColor: Colors.blueGrey.withOpacity(0.1),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -158,7 +158,7 @@ class _NSMBookingBookPageState extends State<NSMBookingBookPage> {
                     decoration: InputDecoration(
                       labelText: "End Date",
                       filled: true,
-                      fillColor: Colors.blue.withOpacity(0.1),
+                      fillColor: Colors.blueGrey.withOpacity(0.1),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -180,7 +180,7 @@ class _NSMBookingBookPageState extends State<NSMBookingBookPage> {
               decoration: InputDecoration(
                 labelText: "Status",
                 filled: true,
-                fillColor: Colors.blue.withOpacity(0.1),
+                fillColor: Colors.blueGrey.withOpacity(0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -208,7 +208,7 @@ class _NSMBookingBookPageState extends State<NSMBookingBookPage> {
                     onPressed: _handleSearch,
                     child: const Text('Search', style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.blueGrey,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -292,7 +292,7 @@ class DetailsPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(title),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue, // Change back arrow color to blue
+        foregroundColor: Colors.blueGrey, // Change back arrow color to blueGrey
         elevation: 0, // Optional: Remove the shadow of the app bar
       ),
       body: Center(

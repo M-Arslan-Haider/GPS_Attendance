@@ -123,7 +123,7 @@ class _SMBookingBookPageState extends State<SMBookingBookPage> {
                     decoration: InputDecoration(
                       labelText: "Designation",
                       filled: true,
-                      fillColor: Colors.blue.withOpacity(0.1),
+                      fillColor: Colors.blueGrey.withOpacity(0.1),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -151,7 +151,7 @@ class _SMBookingBookPageState extends State<SMBookingBookPage> {
                     decoration: InputDecoration(
                       labelText: "Select Shop",
                       filled: true,
-                      fillColor: Colors.blue.withOpacity(0.1),
+                      fillColor: Colors.blueGrey.withOpacity(0.1),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,

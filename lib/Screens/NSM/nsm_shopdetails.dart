@@ -266,7 +266,7 @@ class _NSMShopDetailPageState extends State<NSMShopDetailPage> {
           context,
           'Data refreshed successfully!',
           Icons.check_circle_outline,
-          Colors.blue[600]!,
+          Colors.blueGrey[600]!,
 
         );
       } else {
@@ -333,13 +333,13 @@ class _NSMShopDetailPageState extends State<NSMShopDetailPage> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               isDate ? Icons.calendar_today : Icons.search,
-              color: Colors.blue,
+              color: Colors.blueGrey,
             ),
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.withOpacity(0.4), fontSize: 13),
             border: InputBorder.none,
             focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.blue, width: 0.1),
+              borderSide: BorderSide(color: Colors.blueGrey, width: 0.1),
               borderRadius: BorderRadius.circular(10.0),
             ),
             enabledBorder: OutlineInputBorder(
@@ -404,7 +404,7 @@ class _NSMShopDetailPageState extends State<NSMShopDetailPage> {
                       const SizedBox(height: 8.0),
                       Row(
                         children: [
-                          const Icon(Icons.location_city, size: 10.0, color: Colors.blue),
+                          const Icon(Icons.location_city, size: 10.0, color: Colors.blueGrey),
                           const SizedBox(width: 4.0),
                           Expanded(
                             child: Text('City: ${shop.city}', style: const TextStyle(fontSize: 10)),
@@ -414,7 +414,7 @@ class _NSMShopDetailPageState extends State<NSMShopDetailPage> {
                       const SizedBox(height: 4.0),
                       Row(
                         children: [
-                          const Icon(Icons.location_on, size: 10.0, color: Colors.blue),
+                          const Icon(Icons.location_on, size: 10.0, color: Colors.blueGrey),
                           const SizedBox(width: 4.0),
                           Expanded(
                             child: Text('Address: ${shop.address}', style: const TextStyle(fontSize: 10)),
@@ -436,8 +436,12 @@ class _NSMShopDetailPageState extends State<NSMShopDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: const Text('NSM SHOP DETAIL'),
-          backgroundColor: Colors.blue,
+          title: const Text('NSM SHOP DETAIL', style: TextStyle(color: Colors.white),),
+      backgroundColor: Colors.blueGrey,
+      // 👇 Back arrow color
+      iconTheme: const IconThemeData(
+        color: Colors.white,
+      ),
         ),
         body: RefreshIndicator(
           onRefresh: _handleRefresh,
@@ -461,7 +465,7 @@ class _NSMShopDetailPageState extends State<NSMShopDetailPage> {
                         padding: const EdgeInsets.symmetric(vertical: 2.0),
                         child: Row(
                           children: [
-                            const Icon(Icons.access_time, color: Colors.blue),
+                            const Icon(Icons.access_time, color: Colors.blueGrey),
                             const SizedBox(width: 8.0),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,

@@ -263,7 +263,7 @@ class NSM_RSM_StatusState extends State<NSM_RSM_Status> {
           context,
           'Data refreshed successfully!',
           Icons.check_circle_outline,
-          Colors.blue[600]!,
+          Colors.blueGrey[600]!,
 
         );
       } else {
@@ -338,7 +338,7 @@ class NSM_RSM_StatusState extends State<NSM_RSM_Status> {
                         padding: const EdgeInsets.symmetric(vertical: 2.0),
                         child: Row(
                           children: [
-                            const Icon(Icons.access_time, color: Colors.blue, size: 14.0, ),
+                            const Icon(Icons.access_time, color: Colors.blueGrey, size: 14.0, ),
                             const SizedBox(width: 8.0),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,17 +392,17 @@ class NSM_RSM_StatusState extends State<NSM_RSM_Status> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               isDate ? Icons.calendar_today : Icons.search,
-              color: Colors.blue,
+              color: Colors.blueGrey,
             ),
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.withOpacity(0.4), fontSize: 13),
             border: InputBorder.none,
             focusedBorder: OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.blue, width: 1.0),
+              borderSide: const BorderSide(color: Colors.blueGrey, width: 1.0),
               borderRadius: BorderRadius.circular(2.0),
             ),
             enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.blue, width: 0.1),
+              borderSide: BorderSide(color: Colors.blueGrey, width: 0.1),
               borderRadius: BorderRadius.circular(1.0),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
@@ -424,7 +424,7 @@ class NSM_RSM_StatusState extends State<NSM_RSM_Status> {
     // Determine the color and text based on the attendance status
     switch (booker.attendanceStatus) {
       case 'clock_in':
-        statusColor = Colors.blue;
+        statusColor = Colors.blueGrey;
         statusText = 'Clocked In';
         break;
       case 'clock_out':
@@ -509,7 +509,7 @@ class NSM_RSM_StatusState extends State<NSM_RSM_Status> {
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.work, size: 11.0, color: Colors.blue),
+                          const Icon(Icons.work, size: 11.0, color: Colors.blueGrey),
                           const SizedBox(width: 1.0),
                           Expanded(
                             child: Text(
@@ -523,7 +523,7 @@ class NSM_RSM_StatusState extends State<NSM_RSM_Status> {
                         const SizedBox(height: 1.0),
                         Row(
                           children: [
-                      //      const Icon(Icons.location_on, size: 14.0, color: Colors.blue),
+                      //      const Icon(Icons.location_on, size: 14.0, color: Colors.blueGrey),
                             const SizedBox(width: 4.0),
                             Expanded(
                               child: Text(

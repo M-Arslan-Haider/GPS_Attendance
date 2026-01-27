@@ -266,7 +266,7 @@ class _SM_RSMStatusState extends State<SM_RSMStatus> {
           context,
           'Data refreshed successfully!',
           Icons.check_circle_outline,
-          Colors.blue[600]!,
+          Colors.blueGrey[600]!,
 
         );
       } else {
@@ -344,7 +344,7 @@ class _SM_RSMStatusState extends State<SM_RSMStatus> {
                         padding: const EdgeInsets.symmetric(vertical: 2.0),
                         child: Row(
                           children: [
-                            const Icon(Icons.access_time, color: Colors.blue),
+                            const Icon(Icons.access_time, color: Colors.blueGrey),
                             const SizedBox(width: 8.0),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,13 +399,13 @@ class _SM_RSMStatusState extends State<SM_RSMStatus> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               isDate ? Icons.calendar_today : Icons.search,
-              color: Colors.blue,
+              color: Colors.blueGrey,
             ),
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.withOpacity(0.4), fontSize: 13),
             border: InputBorder.none,
             focusedBorder: OutlineInputBorder(
-              borderSide: const BorderSide(color: Colors.blue, width: 0.1),
+              borderSide: const BorderSide(color: Colors.blueGrey, width: 0.1),
               borderRadius: BorderRadius.circular(2.0),
             ),
             enabledBorder: OutlineInputBorder(
@@ -430,7 +430,7 @@ class _SM_RSMStatusState extends State<SM_RSMStatus> {
     String statusText;
     switch (booker.attendanceStatus) {
       case 'clock_in':
-        statusColor = Colors.blue;
+        statusColor = Colors.blueGrey;
         statusText = 'Clocked In';
         break;
       case 'clock_out':
@@ -494,7 +494,7 @@ class _SM_RSMStatusState extends State<SM_RSMStatus> {
                           const SizedBox(height: 1.0),
                           Row(
                             children: [
-                              const Icon(Icons.work, size: 12.0, color: Colors.blue),
+                              const Icon(Icons.work, size: 12.0, color: Colors.blueGrey),
                               const SizedBox(width: 4.0),
                               Expanded(
                                 child: Text(
@@ -508,7 +508,7 @@ class _SM_RSMStatusState extends State<SM_RSMStatus> {
                             const SizedBox(height: 4.0),
                             Row(
                               children: [
-                                const Icon(Icons.location_on, size: 10.0, color: Colors.blue),
+                                const Icon(Icons.location_on, size: 10.0, color: Colors.blueGrey),
                                 const SizedBox(width: 4.0),
                                 Expanded(
                                   child: Text(

@@ -70,7 +70,7 @@ class _NsmLocationNavigationState extends State<NsmLocationNavigation> {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color: _selectedIndex == 0 ? Colors.blue : Colors.transparent,
+                            color: _selectedIndex == 0 ? Colors.blueGrey : Colors.transparent,
                             width: 3.0,
                           ),
                         ),
@@ -78,7 +78,7 @@ class _NsmLocationNavigationState extends State<NsmLocationNavigation> {
                       child: Text(
                         'SM',
                         style: TextStyle(
-                          color: _selectedIndex == 0 ? Colors.blue : Colors.black,
+                          color: _selectedIndex == 0 ? Colors.blueGrey : Colors.black,
                           fontSize: 14,
                         ),
                       ),
@@ -94,7 +94,7 @@ class _NsmLocationNavigationState extends State<NsmLocationNavigation> {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color: _selectedIndex == 1 ? Colors.blue : Colors.transparent,
+                            color: _selectedIndex == 1 ? Colors.blueGrey : Colors.transparent,
                             width: 3.0,
                           ),
                         ),
@@ -102,7 +102,7 @@ class _NsmLocationNavigationState extends State<NsmLocationNavigation> {
                       child: Text(
                         'RSM',
                         style: TextStyle(
-                          color: _selectedIndex == 1 ? Colors.blue : Colors.black,
+                          color: _selectedIndex == 1 ? Colors.blueGrey : Colors.black,
                           fontSize: 14,
                         ),
                       ),
@@ -118,7 +118,7 @@ class _NsmLocationNavigationState extends State<NsmLocationNavigation> {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color: _selectedIndex == 2 ? Colors.blue : Colors.transparent,
+                            color: _selectedIndex == 2 ? Colors.blueGrey : Colors.transparent,
                             width: 3.0,
                           ),
                         ),
@@ -126,7 +126,7 @@ class _NsmLocationNavigationState extends State<NsmLocationNavigation> {
                       child: Text(
                         'BOOKERS',
                         style: TextStyle(
-                          color: _selectedIndex == 2 ? Colors.blue : Colors.black,
+                          color: _selectedIndex == 2 ? Colors.blueGrey : Colors.black,
                           fontSize: 14,
                         ),
                       ),

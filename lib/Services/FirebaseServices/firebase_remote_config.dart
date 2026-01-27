@@ -350,9 +350,9 @@ class Config {
 
   // static String get postApiUrlTravelData => remoteConfig.getString('traveldataGetUrl');
   static String get postApiUrlTravelData => remoteConfig.getString('traveldataGetUrl');
-  // static String get postApiUrlcenterpoint => remoteConfig.getString('centerPointUrl');
+  static String get postApiUrlcenterpoint => remoteConfig.getString('centerPointUrl');
 
-  static String get postApiUrlSkcenterpoint => remoteConfig.getString('centerPointUrl');
+
 
   static String get postApiUrlLeaveForm => remoteConfig.getString('leaveFormGetUrl');
 

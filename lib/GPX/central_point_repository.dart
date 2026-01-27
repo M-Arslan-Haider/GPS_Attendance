@@ -136,7 +136,7 @@ class CentralPointsRepository {
       """);
 
       await _fetchConfigIfNeeded();
-      final apiUrl = Config.postApiUrlSkcenterpoint;
+      final apiUrl = Config.postApiUrlcenterpoint;
 
       debugPrint("✅ Config fetched");
       debugPrint("   API URL: $apiUrl");
@@ -267,177 +267,184 @@ class CentralPointsRepository {
   // --------------------------------------------------------
   // POST A SINGLE CENTRAL POINT TO API (FIXED VERSION)
   // --------------------------------------------------------
-  Future<bool> postCentralPointToAPI(CentralPointsModel cp) async {
-    Stopwatch stopwatch = Stopwatch()..start();
-
-    try {
-      debugPrint("""
-      🚀🚀🚀 API POST PROCESS STARTED 🚀🚀🚀
-      Time: ${DateTime.now().toString()}
-      Central Point ID: ${cp.centralPointId}
-      Record Type: Individual Cluster
-      """);
-
-      // STEP 1: BASIC CHECKS
-      debugPrint("\n📋 STEP 1: Basic Checks");
-
-      // 1.1 User ID
-      if (user_id.isEmpty) {
-        debugPrint("❌ FAIL: user_id is empty");
-        debugPrint("   Current user_id: '$user_id'");
-        return false;
-      }
-      debugPrint("✅ User ID: $user_id");
-
-      // 1.2 API URL
-      await _fetchConfigIfNeeded();
-      final apiUrl = Config.postApiUrlSkcenterpoint;
-
-      if (apiUrl.isEmpty) {
-        debugPrint("❌ FAIL: API URL is empty");
-        debugPrint("   Check Firebase Remote Config key: 'postApiUrlcenterpoint'");
-        return false;
-      }
-
-      if (!apiUrl.startsWith('http')) {
-        debugPrint("❌ FAIL: Invalid API URL format");
-        debugPrint("   URL: $apiUrl");
-        return false;
-      }
-      debugPrint("✅ API URL: $apiUrl");
-
-      // STEP 2: NETWORK CHECK
-      debugPrint("\n📶 STEP 2: Network Check");
-
-      bool networkAvailable = await isNetworkAvailable();
-      if (!networkAvailable) {
-        debugPrint("❌ FAIL: No network connection");
-        return false;
-      }
-      debugPrint("✅ Network is available");
-
-      // STEP 3: PAYLOAD PREPARATION
-      debugPrint("\n📦 STEP 3: Payload Preparation");
-
-      final payload = cp.toApiMap();
-      debugPrint("✅ Payload created with keys: ${payload.keys.toList()}");
-
-      // Check clusters in payload
-      if (payload['clusters'] == null || (payload['clusters'] as List).isEmpty) {
-        debugPrint("⚠️ WARNING: No clusters in payload");
-      } else {
-        debugPrint("✅ Clusters in payload: ${(payload['clusters'] as List).length}");
-
-        // Print individual cluster details
-        for (int i = 0; i < (payload['clusters'] as List).length; i++) {
-          var cluster = (payload['clusters'] as List)[i];
-          debugPrint("""
-          🔥 Cluster ${i + 1} Details:
-             ID: ${cluster['cluster_id']}
-             Address: ${cluster['cluster_address']}
-             Points: ${cluster['cluster_points_count']}
-             Stay Time: ${cluster['cluster_stay_time']} min
-             Area: ${cluster['cluster_area']} sq km
-          """);
-        }
-      }
-
-      // STEP 4: API REQUEST
-      debugPrint("\n🌐 STEP 4: Making API Request");
-
-      debugPrint("📤 Sending to: $apiUrl");
-
-      final client = http.Client();
-      http.Response? response;
-
-      try {
-        debugPrint("⏱️ Starting request...");
-
-        response = await client.post(
-          Uri.parse(apiUrl),
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "X-User-ID": user_id,
-          },
-          body: jsonEncode(payload),
-        ).timeout(Duration(seconds: 30));
-
-        debugPrint("⏱️ Request completed in ${stopwatch.elapsedMilliseconds}ms");
-
-      } catch (e) {
-        debugPrint("""
-        ❌❌❌ NETWORK ERROR ❌❌❌
-        Error Type: ${e.runtimeType}
-        Error Message: $e
-        """);
-        return false;
-      } finally {
-        client.close();
-      }
-
-      // STEP 5: RESPONSE HANDLING
-      debugPrint("\n📥 STEP 5: Response Handling");
-
-      if (response == null) {
-        debugPrint("❌ FAIL: No response received");
-        return false;
-      }
-
-      debugPrint("📊 Response Status: ${response.statusCode}");
-
-      if (response.body.isNotEmpty) {
-        debugPrint("📄 Response Body (first 200 chars):");
-        debugPrint(response.body.substring(0, min(200, response.body.length)));
-      }
-
-      // Check status codes
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint("""
-        ✅✅✅ SUCCESS ✅✅✅
-        Individual Cluster Posted Successfully!
-        ID: ${cp.centralPointId}
-        Address: ${cp.addressDistrict}
-        Total Time: ${stopwatch.elapsedMilliseconds}ms
-        """);
-        return true;
-
-      } else if (response.statusCode == 400) {
-        debugPrint("❌ FAIL: Bad Request (400)");
-        debugPrint("   Server rejected the request");
-
-      } else if (response.statusCode == 401) {
-        debugPrint("❌ FAIL: Unauthorized (401)");
-
-      } else if (response.statusCode == 404) {
-        debugPrint("❌ FAIL: Not Found (404)");
-        debugPrint("   API endpoint not found");
-        debugPrint("   Check URL: $apiUrl");
-
-      } else if (response.statusCode == 500) {
-        debugPrint("❌ FAIL: Server Error (500)");
-
-      } else {
-        debugPrint("❌ FAIL: Unexpected status: ${response.statusCode}");
-      }
-
-      return false;
-
-    } catch (e, stackTrace) {
-      debugPrint("""
-      ❌❌❌ UNEXPECTED ERROR ❌❌❌
-      Error: $e
-      Total Time: ${stopwatch.elapsedMilliseconds}ms
-      """);
-      return false;
-    } finally {
-      stopwatch.stop();
-    }
-  }
+  // Future<bool> postCentralPointToAPI(CentralPointsModel cp) async {
+  //   Stopwatch stopwatch = Stopwatch()..start();
+  //
+  //   try {
+  //     debugPrint("""
+  //     🚀🚀🚀 API POST PROCESS STARTED 🚀🚀🚀
+  //     Time: ${DateTime.now().toString()}
+  //     Central Point ID: ${cp.centralPointId}
+  //     Record Type: Individual Cluster
+  //     """);
+  //
+  //     // STEP 1: BASIC CHECKS
+  //     debugPrint("\n📋 STEP 1: Basic Checks");
+  //
+  //     // 1.1 User ID
+  //     if (user_id.isEmpty) {
+  //       debugPrint("❌ FAIL: user_id is empty");
+  //       debugPrint("   Current user_id: '$user_id'");
+  //       return false;
+  //     }
+  //     debugPrint("✅ User ID: $user_id");
+  //
+  //     // 1.2 API URL
+  //     await _fetchConfigIfNeeded();
+  //     final apiUrl = Config.postApiUrlcenterpoint;
+  //
+  //     if (apiUrl.isEmpty) {
+  //       debugPrint("❌ FAIL: API URL is empty");
+  //       debugPrint("   Check Firebase Remote Config key: 'postApiUrlcenterpoint'");
+  //       return false;
+  //     }
+  //
+  //     if (!apiUrl.startsWith('http')) {
+  //       debugPrint("❌ FAIL: Invalid API URL format");
+  //       debugPrint("   URL: $apiUrl");
+  //       return false;
+  //     }
+  //     debugPrint("✅ API URL: $apiUrl");
+  //
+  //     // STEP 2: NETWORK CHECK
+  //     debugPrint("\n📶 STEP 2: Network Check");
+  //
+  //     bool networkAvailable = await isNetworkAvailable();
+  //     if (!networkAvailable) {
+  //       debugPrint("❌ FAIL: No network connection");
+  //       return false;
+  //     }
+  //     debugPrint("✅ Network is available");
+  //
+  //     // STEP 3: PAYLOAD PREPARATION
+  //     debugPrint("\n📦 STEP 3: Payload Preparation");
+  //
+  //     final payload = cp.toApiMap();
+  //     debugPrint("✅ Payload created with keys: ${payload.keys.toList()}");
+  //
+  //     // Check clusters in payload
+  //     if (payload['clusters'] == null || (payload['clusters'] as List).isEmpty) {
+  //       debugPrint("⚠️ WARNING: No clusters in payload");
+  //     } else {
+  //       debugPrint("✅ Clusters in payload: ${(payload['clusters'] as List).length}");
+  //
+  //       // Print individual cluster details
+  //       for (int i = 0; i < (payload['clusters'] as List).length; i++) {
+  //         var cluster = (payload['clusters'] as List)[i];
+  //         debugPrint("""
+  //         🔥 Cluster ${i + 1} Details:
+  //            ID: ${cluster['cluster_id']}
+  //            Address: ${cluster['cluster_address']}
+  //            Points: ${cluster['cluster_points_count']}
+  //            Stay Time: ${cluster['cluster_stay_time']} min
+  //            Area: ${cluster['cluster_area']} sq km
+  //         """);
+  //       }
+  //     }
+  //
+  //     // STEP 4: API REQUEST
+  //     debugPrint("\n🌐 STEP 4: Making API Request");
+  //
+  //     debugPrint("📤 Sending to: $apiUrl");
+  //
+  //     final client = http.Client();
+  //     http.Response? response;
+  //
+  //     try {
+  //       debugPrint("⏱️ Starting request...");
+  //
+  //       response = await client.post(
+  //         Uri.parse(apiUrl),
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //           "Accept": "application/json",
+  //           "X-User-ID": user_id,
+  //         },
+  //         body: jsonEncode(payload),
+  //       ).timeout(Duration(seconds: 30));
+  //
+  //       debugPrint("⏱️ Request completed in ${stopwatch.elapsedMilliseconds}ms");
+  //
+  //     } catch (e) {
+  //       debugPrint("""
+  //       ❌❌❌ NETWORK ERROR ❌❌❌
+  //       Error Type: ${e.runtimeType}
+  //       Error Message: $e
+  //       """);
+  //       return false;
+  //     } finally {
+  //       client.close();
+  //     }
+  //
+  //     // STEP 5: RESPONSE HANDLING
+  //     debugPrint("\n📥 STEP 5: Response Handling");
+  //
+  //     if (response == null) {
+  //       debugPrint("❌ FAIL: No response received");
+  //       return false;
+  //     }
+  //
+  //     debugPrint("📊 Response Status: ${response.statusCode}");
+  //
+  //     if (response.body.isNotEmpty) {
+  //       debugPrint("📄 Response Body (first 200 chars):");
+  //       debugPrint(response.body.substring(0, min(200, response.body.length)));
+  //     }
+  //
+  //     // Check status codes
+  //     if (response.statusCode == 200 || response.statusCode == 201) {
+  //       debugPrint("""
+  //       ✅✅✅ SUCCESS ✅✅✅
+  //       Individual Cluster Posted Successfully!
+  //       ID: ${cp.centralPointId}
+  //       Address: ${cp.addressDistrict}
+  //       Total Time: ${stopwatch.elapsedMilliseconds}ms
+  //       """);
+  //       return true;
+  //
+  //     } else if (response.statusCode == 400) {
+  //       debugPrint("❌ FAIL: Bad Request (400)");
+  //       debugPrint("   Server rejected the request");
+  //
+  //     } else if (response.statusCode == 401) {
+  //       debugPrint("❌ FAIL: Unauthorized (401)");
+  //
+  //     } else if (response.statusCode == 404) {
+  //       debugPrint("❌ FAIL: Not Found (404)");
+  //       debugPrint("   API endpoint not found");
+  //       debugPrint("   Check URL: $apiUrl");
+  //
+  //     } else if (response.statusCode == 500) {
+  //       debugPrint("❌ FAIL: Server Error (500)");
+  //
+  //     } else {
+  //       debugPrint("❌ FAIL: Unexpected status: ${response.statusCode}");
+  //     }
+  //
+  //     return false;
+  //
+  //   } catch (e, stackTrace) {
+  //     debugPrint("""
+  //     ❌❌❌ UNEXPECTED ERROR ❌❌❌
+  //     Error: $e
+  //     Total Time: ${stopwatch.elapsedMilliseconds}ms
+  //     """);
+  //     return false;
+  //   } finally {
+  //     stopwatch.stop();
+  //   }
+  // }
 
   // --------------------------------------------------------
   // BATCH POSTING FOR BETTER PERFORMANCE
   // --------------------------------------------------------
+
+
+  Future<bool> postCentralPointToAPI(CentralPointsModel cp) async {
+    debugPrint("⚠️ API posting disabled - skipping ${cp.centralPointId}");
+    return false; // Or true if you want to mark it as successful locally
+  }
+
   Future<void> postCentralPointsInBatch() async {
     if (_isPosting) {
       debugPrint("⏳ Already posting, skipping batch...");

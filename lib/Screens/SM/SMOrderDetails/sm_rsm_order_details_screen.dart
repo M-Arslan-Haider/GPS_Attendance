@@ -330,7 +330,7 @@ class _NSM_SM_StatusState extends State<SmRsmOrderDetailsScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 2.0),
                     child: Row(
                       children: [
-                        const Icon(Icons.access_time, color: Colors.blue),
+                        const Icon(Icons.access_time, color: Colors.blueGrey),
                         const SizedBox(width: 8.0),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,

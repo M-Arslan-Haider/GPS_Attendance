@@ -217,6 +217,10 @@ class ShopVisitPageState extends State<ShopVisitPage> {
         title: const Text('Shop Visit Form', style: TextStyle(color: Colors.white),),
         backgroundColor: Colors.blueGrey,
         elevation: 0,
+        // 👇 Back arrow color
+        iconTheme: const IconThemeData(
+          color: Colors.white,
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

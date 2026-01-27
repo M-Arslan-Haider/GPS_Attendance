@@ -25,7 +25,7 @@ class ShopDetailsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('${shop.name} Details'),
-        backgroundColor: Colors.blue[700],
+        backgroundColor: Colors.blueGrey[700],
         elevation: 4.0,
         actions: [
           IconButton(
@@ -61,7 +61,7 @@ class ShopDetailsPage extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.blue[700]!, Colors.blue[400]!],
+            colors: [Colors.blueGrey[700]!, Colors.blueGrey[400]!],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -140,7 +140,7 @@ class ShopDetailsPage extends StatelessWidget {
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), // Increased padding
             leading: CircleAvatar(
-              backgroundColor: Colors.blue[700],
+              backgroundColor: Colors.blueGrey[700],
               child: const Icon(
                 Icons.receipt_long,
                 color: Colors.white,
@@ -155,7 +155,7 @@ class ShopDetailsPage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 17, // Increased font size
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue[800],
+                    color: Colors.blueGrey[800],
                   ),
                 ),
                 const SizedBox(height: 4), // Increased spacing
@@ -204,7 +204,7 @@ class ShopDetailsPage extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6.0), // Match the card's border radius
           gradient: LinearGradient(
-            colors: [Colors.blue[50]!, Colors.blue[100]!], // Soft gradient background
+            colors: [Colors.blueGrey[50]!, Colors.blueGrey[100]!], // Soft gradient background
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -227,7 +227,7 @@ class ShopDetailsPage extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.shopping_basket, // Icon for total orders
-                      color: Colors.blue[700],
+                      color: Colors.blueGrey[700],
                       size: 24,
                     ),
                     const SizedBox(width: 4),
@@ -262,7 +262,7 @@ class ShopDetailsPage extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.money, // Icon for total balance
-                      color: Colors.blue[700],
+                      color: Colors.blueGrey[700],
                       size: 24,
                     ),
                     const SizedBox(width: 8),

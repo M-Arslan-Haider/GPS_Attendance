@@ -64,7 +64,7 @@ class _NSMBookingStatusState extends State<NsmOrderDetailsScreen> {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color: _selectedIndex == 0 ? Colors.blue : Colors.transparent,
+                            color: _selectedIndex == 0 ? Colors.blueGrey : Colors.transparent,
                             width: 3.0,
                           ),
                         ),
@@ -72,7 +72,7 @@ class _NSMBookingStatusState extends State<NsmOrderDetailsScreen> {
                       child: Text(
                         'SM',
                         style: TextStyle(
-                          color: _selectedIndex == 0 ? Colors.blue : Colors.black,
+                          color: _selectedIndex == 0 ? Colors.blueGrey : Colors.black,
                           fontSize: 14,
                         ),
                       ),
@@ -88,7 +88,7 @@ class _NSMBookingStatusState extends State<NsmOrderDetailsScreen> {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color: _selectedIndex == 1 ? Colors.blue : Colors.transparent,
+                            color: _selectedIndex == 1 ? Colors.blueGrey : Colors.transparent,
                             width: 3.0,
                           ),
                         ),
@@ -96,7 +96,7 @@ class _NSMBookingStatusState extends State<NsmOrderDetailsScreen> {
                       child: Text(
                         'RSM',
                         style: TextStyle(
-                          color: _selectedIndex == 1 ? Colors.blue : Colors.black,
+                          color: _selectedIndex == 1 ? Colors.blueGrey : Colors.black,
                           fontSize: 14,
                         ),
                       ),
@@ -112,7 +112,7 @@ class _NSMBookingStatusState extends State<NsmOrderDetailsScreen> {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color: _selectedIndex == 2 ? Colors.blue : Colors.transparent,
+                            color: _selectedIndex == 2 ? Colors.blueGrey : Colors.transparent,
                             width: 3.0,
                           ),
                         ),
@@ -120,7 +120,7 @@ class _NSMBookingStatusState extends State<NsmOrderDetailsScreen> {
                       child: Text(
                         'BOOKER',
                         style: TextStyle(
-                          color: _selectedIndex == 2 ? Colors.blue : Colors.black,
+                          color: _selectedIndex == 2 ? Colors.blueGrey : Colors.black,
                           fontSize: 14,
                         ),
                       ),

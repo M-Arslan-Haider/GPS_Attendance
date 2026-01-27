@@ -121,7 +121,7 @@
 //     return Scaffold(
 //       appBar: AppBar(
 //         title: const Text("Booker's Live Location"),
-//         backgroundColor: Colors.blue,
+//         backgroundColor: Colors.blueGrey,
 //       ),
 //       body: Stack(
 //         children: [
@@ -162,7 +162,7 @@
 //         onPressed: () {
 //           _loadMarkers(); // 🔄 Manual refresh
 //         },
-//         backgroundColor: Colors.blue,
+//         backgroundColor: Colors.blueGrey,
 //         child: const Icon(Icons.refresh, color: Colors.white),
 //       ),
 //     );
@@ -261,12 +261,12 @@ class _LiveLocationPageState extends State<LiveLocationPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Booker's Live Location"),
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.blueGrey,
         elevation: 0,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.blue, Colors.blueAccent],
+              colors: [Colors.blueGrey, Colors.blueGrey],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -345,7 +345,7 @@ class _LiveLocationPageState extends State<LiveLocationPage> {
         onPressed: () {
           mapController.animateCamera(CameraUpdate.newLatLngZoom(_initialCameraPosition, 6));
         },
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.blueGrey,
         child: const Icon(Icons.my_location, color: Colors.white),
       ),
     );

@@ -74,7 +74,7 @@ class _RSMBookingBookPageState extends State<RSMBookingBookPage> {
               child: Text('Booker Order Detail',
                   style: TextStyle(fontFamily: 'avenir next', fontSize: 17, color: Colors.black))),
           backgroundColor: Colors.white,
-          foregroundColor: Colors.blue,
+          foregroundColor: Colors.blueGrey,
           elevation: 0,
         ),
         body: Padding(
@@ -89,7 +89,7 @@ class _RSMBookingBookPageState extends State<RSMBookingBookPage> {
                       decoration: InputDecoration(
                         labelText: "Select Shop",
                         filled: true,
-                        fillColor: Colors.blue.withOpacity(0.1),
+                        fillColor: Colors.blueGrey.withOpacity(0.1),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide.none,
@@ -116,7 +116,7 @@ class _RSMBookingBookPageState extends State<RSMBookingBookPage> {
                       decoration: InputDecoration(
                         labelText: "Select Order",
                         filled: true,
-                        fillColor: Colors.blue.withOpacity(0.1),
+                        fillColor: Colors.blueGrey.withOpacity(0.1),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide.none,
@@ -148,7 +148,7 @@ class _RSMBookingBookPageState extends State<RSMBookingBookPage> {
                       decoration: InputDecoration(
                         labelText: "Start Date",
                         filled: true,
-                        fillColor: Colors.blue.withOpacity(0.1),
+                        fillColor: Colors.blueGrey.withOpacity(0.1),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -170,7 +170,7 @@ class _RSMBookingBookPageState extends State<RSMBookingBookPage> {
                       decoration: InputDecoration(
                         labelText: "End Date",
                         filled: true,
-                        fillColor: Colors.blue.withOpacity(0.1),
+                        fillColor: Colors.blueGrey.withOpacity(0.1),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -192,7 +192,7 @@ class _RSMBookingBookPageState extends State<RSMBookingBookPage> {
                 decoration: InputDecoration(
                   labelText: "Status",
                   filled: true,
-                  fillColor: Colors.blue.withOpacity(0.1),
+                  fillColor: Colors.blueGrey.withOpacity(0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -220,7 +220,7 @@ class _RSMBookingBookPageState extends State<RSMBookingBookPage> {
                       onPressed: _handleSearch,
                       child: const Text('Search', style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Colors.blueGrey,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),

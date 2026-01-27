@@ -252,7 +252,7 @@ class _NSMBookerDetailsPageState extends State<NsmRsmBookerDetailsScreen> {
                   child: ElevatedButton(
                     onPressed: _clearFilters,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.blueGrey,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

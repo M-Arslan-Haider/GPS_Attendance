@@ -9,9 +9,11 @@ class LoginModels{
   dynamic rsm;
   dynamic sm;
   dynamic nsm;
+  dynamic dispatcher;
   dynamic rsm_id;
   dynamic sm_id;
   dynamic nsm_id;
+  dynamic dispatcher_id;
 
   LoginModels({
     this.user_id,
@@ -26,7 +28,10 @@ class LoginModels{
     this.rsm,
     this.rsm_id,
     this.sm,
-    this.sm_id
+    this.sm_id,
+    this.dispatcher,
+    this.dispatcher_id,
+
 
   });
   factory
@@ -42,6 +47,8 @@ class LoginModels{
       nsm: json['nsm'],
       sm_id: json['sm_id'],
       sm: json['sm'],
+      dispatcher_id: json['dispatcher_id'],
+      dispatcher: json['dispatcher'],
       designation: json['designation'],
       brand: json['brand'],
       images: json['images'],
@@ -80,6 +87,9 @@ class LoginModels{
       'rsm_id': rsm_id,
       'sm': sm,
       'sm_id': sm_id,
+      'dispatcher' : dispatcher,
+      'dispatcher_id' : dispatcher_id,
+
     };
 
   }

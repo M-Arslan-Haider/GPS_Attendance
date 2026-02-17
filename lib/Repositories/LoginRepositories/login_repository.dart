@@ -19,7 +19,7 @@ class LoginRepository extends GetxService{
         tableNameLogin,
         where: 'user_id = ? AND password = ?',
         whereArgs: [user_id, password],
-        columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' ,  'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id']
+        columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' , 'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id', 'dispatcher', 'dispatcher_id' ]
     );
 
     if (maps.isNotEmpty) {
@@ -34,7 +34,7 @@ class LoginRepository extends GetxService{
       tableNameLogin,
       where: 'user_id = ?',
       whereArgs: [user_id],
-      columns: ['user_id', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id'],
+      columns: ['user_id', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id',  'dispatcher', 'dispatcher_id'],
     );
 
     if (maps.isNotEmpty) {
@@ -49,7 +49,7 @@ class LoginRepository extends GetxService{
     // Query the database
     List<Map> maps = await dbClient.query(
         tableNameLogin,
-        columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' ,  'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id']
+        columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' ,  'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id',  'dispatcher', 'dispatcher_id']
     );
 
     // Print the raw data retrieved from the database
@@ -133,7 +133,7 @@ class LoginRepository extends GetxService{
       tableNameLogin,
       where: '$designationColumn = ?',
       whereArgs: [designationValue],
-      columns: ['user_id', 'password', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id'],
+      columns: ['user_id', 'password', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id',  'dispatcher', 'dispatcher_id'],
     );
 
     // Debug: Print the fetched data
@@ -175,6 +175,17 @@ class LoginRepository extends GetxService{
     final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
       tableNameLogin,
       where: 'nsm_id = ?',
+      whereArgs: [user_id],
+    );
+    return bookerNames.map((map) => map['user_id'] as String).toList();
+
+  }
+  Future<List<String>> getBookerNamesByDISPATCHERDesignation() async {
+    var dbClient = await dbHelper.db;
+
+    final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
+      tableNameLogin,
+      where: 'dispatcher_id = ?',
       whereArgs: [user_id],
     );
     return bookerNames.map((map) => map['user_id'] as String).toList();

@@ -27,6 +27,8 @@ import 'Databases/dp_helper.dart';
 import 'Databases/util.dart';
 import 'LocatioPoints/ravelTimeViewModel.dart';
 import 'LocatioPoints/travel_time-screen.dart';
+import 'Screens/Dispatcher/dispatcher_homepage.dart';
+import 'Screens/HomeScreenComponents/Bottom_Nav_Bar/bottom_nav_screen.dart';
 import 'Screens/NSM/nsm_homepage.dart';
 import 'Screens/RSMS_Views/RSM_HomePage.dart';
 import 'Screens/SM/sm_homepage.dart';
@@ -91,9 +93,11 @@ Future<void> main() async {
     userSM = prefs.getString('userSM') ?? '';
     userNSM = prefs.getString('userNSM') ?? '';
     userRSM = prefs.getString('userRSM') ?? '';
+    userDISPATCHER = prefs.getString('userDISPATCHER') ?? '';
     userNameRSM = prefs.getString('userNameRSM') ?? '';
     userNameNSM = prefs.getString('userNameNSM') ?? '';
     userNameSM = prefs.getString('userNameSM') ?? '';
+    userNameDISPATCHER = prefs.getString('userNameDISPATCHER') ?? '';
 
     debugPrint("Initializing Workmanager...");
     Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
@@ -155,6 +159,7 @@ class MyApp extends StatelessWidget {
         GetPage(name: '/NSMHomepage', page: () => const NSMHomepage()),
         GetPage(name: '/RSMHomepage', page: () => const RSMHomepage()),
         GetPage(name: '/SMHomepage', page: () => const SMHomepage()),
+        GetPage(name: '/DispatcherHomepage', page: () => const DispatcherHomepage()),
         GetPage(name: '/CodeScreen', page: () => const CodeScreen()),
 
         GetPage(

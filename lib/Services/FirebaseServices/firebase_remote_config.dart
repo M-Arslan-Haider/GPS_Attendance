@@ -8,7 +8,6 @@ class Config {
   static String? _erpCompanyName; // Cached value
 
   static Future<void> initialize() async {
-
     remoteConfig = FirebaseRemoteConfig.instance;
     await remoteConfig.setConfigSettings(RemoteConfigSettings(
       fetchTimeout: const Duration(seconds: 1),

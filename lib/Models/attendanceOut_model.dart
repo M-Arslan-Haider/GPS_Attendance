@@ -11,6 +11,7 @@ class AttendanceOutModel {
   dynamic attendance_out_date;
   dynamic attendance_out_time;
   int posted; // ✅ ADD THIS FIELD - 0 = not posted, 1 = posted
+  String? reason;
 
   AttendanceOutModel({
     this.attendance_out_id,
@@ -22,7 +23,8 @@ class AttendanceOutModel {
     this.attendance_out_date,
     this.attendance_out_time,
     this.address,
-    this.posted = 0 // ✅ DEFAULT TO 0 (NOT POSTED)
+    this.posted = 0, // ✅ DEFAULT TO 0 (NOT POSTED)
+    this.reason,           // 👈 ADD THIS
   });
 
   factory AttendanceOutModel.fromMap(Map<dynamic, dynamic> json) {
@@ -36,7 +38,8 @@ class AttendanceOutModel {
         attendance_out_date: json['attendance_out_date'],
         attendance_out_time: json['attendance_out_time'],
         address: json['address'],
-        posted: json['posted'] ?? 0 // ✅ READ POSTED FIELD FROM DB
+        posted: json['posted'] ?? 0 ,// ✅ READ POSTED FIELD FROM DB
+      reason: json['reason'] ?? 'manual',    // 👈 ADD THIS
     );
   }
 
@@ -72,6 +75,7 @@ class AttendanceOutModel {
       'attendance_out_time': timeString,
       'address': address,
       'posted': posted, // ✅ INCLUDE POSTED FIELD IN API CALL
+      'reason': reason ?? 'manual',    // 👈 ADD THIS
     };
   }
 }

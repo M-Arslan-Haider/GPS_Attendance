@@ -164,6 +164,7 @@ class AttendanceOutViewModel extends GetxController {
       lat_out: locationViewModel.globalLatitude1.value,
       lng_out: locationViewModel.globalLongitude1.value,
       address: address,
+      reason: reason,
     );
 
     debugPrint("📊 [ATTENDANCE OUT DATA]");
@@ -250,6 +251,7 @@ class AttendanceOutViewModel extends GetxController {
           lat_out: locationViewModel.globalLatitude1.value,
           lng_out: locationViewModel.globalLongitude1.value,
           address: locationViewModel.shopAddress.value,
+          reason: reason,
         );
 
         // Save to database in background

@@ -258,17 +258,3 @@ class SubmitButton extends StatelessWidget {
     );
   }
 }
-//   ElevatedButton(
-//   onPressed: viewModel.submitForm,
-//   style: ElevatedButton.styleFrom(
-//     padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-//     backgroundColor: Colors.blue,
-//     shape: RoundedRectangleBorder(
-//       borderRadius: BorderRadius.circular(20),
-//     ),
-//   ),
-//   child: const Text(
-//     'Submit',
-//     style: TextStyle(fontSize: 20, color: Colors.white),
-//   ),
-// );

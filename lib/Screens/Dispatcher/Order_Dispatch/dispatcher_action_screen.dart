@@ -1376,7 +1376,7 @@ class _DispatchDetailScreenState extends State<DispatchDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: _buildStatusButton(
-                  label: "NOT DISPATCHED",
+                  label: "NOT-DISPATCHED",
                   color: Colors.red,
                   icon: Icons.cancel_rounded,
                   isDisabled: isUpdatingStatus,

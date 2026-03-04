@@ -63,6 +63,7 @@ import 'package:android_intent_plus/android_intent.dart' as android_intent;
 import 'package:in_app_update/in_app_update.dart';
 import 'ViewModels/location_view_model.dart';
 
+
 // final LoginViewModel loginViewModel = Get.put(LoginViewModel());
 Future<void> main() async {
   runZonedGuarded(() async {
@@ -321,10 +322,10 @@ void onStart(ServiceInstance service) async {
 
     if (service is AndroidServiceInstance &&
         await service.isForegroundService()) {
-      service.setForegroundNotificationInfo(
-        title: "ClockIn",
-        content: "Timer ${_formatDuration(secondsPassed.toString())}",
-      );
+      // service.setForegroundNotificationInfo(
+      //   title: "ClockIn",
+      //   content: "Timer ${_formatDuration(secondsPassed.toString())}",
+      // );
     }
 
     final deviceInfo = DeviceInfoPlugin();

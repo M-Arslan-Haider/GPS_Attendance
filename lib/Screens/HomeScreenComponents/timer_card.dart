@@ -68,9 +68,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
   double _currentDistance = 0.0;
   Timer? _distanceUpdateTimer;
 
-  // Permission monitoring
-  bool _wasPermissionGranted = true;
-
   // Notification IDs
   int _notificationId = 0;
 
@@ -213,6 +210,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
   }
 
   // ✅ CHECK AND PROCESS CRITICAL EVENT ON APP START
+  // ✅ FIX 1: Clean _checkAndProcessCriticalEvent() - NO DUPLICATES
   Future<void> _checkAndProcessCriticalEvent() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     bool hasCriticalEvent = prefs.getBool(KEY_HAS_CRITICAL_EVENT) ?? false;
@@ -225,13 +223,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
 
     debugPrint("🚨 [CRITICAL EVENT] Found pending critical event on startup");
 
-    String? eventTimeStr = prefs.getString(KEY_EVENT_TIMESTAMP);
-    String? eventReason = prefs.getString(KEY_EVENT_REASON);
-    double? eventDistance = prefs.getDouble(KEY_EVENT_DISTANCE);
-    double? eventLat = prefs.getDouble(KEY_EVENT_LATITUDE);
-    double? eventLng = prefs.getDouble(KEY_EVENT_LONGITUDE);
-
-    // ✅ Reset timer display
+    // ✅ Reset timer display ONCE (not multiple times)
     _localElapsedTime = "00:00:00";
     attendanceViewModel.elapsedTime.value = "00:00:00";
     _localBackupTimer?.cancel();
@@ -243,11 +235,22 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     bool needsGpxFinalization = prefs.getBool(KEY_PENDING_GPX_CLOSE) ?? false;
     String? gpxPath = prefs.getString('event_gpx_file_path') ?? prefs.getString(KEY_GPX_FILE_PATH);
 
+    String? eventTimeStr = prefs.getString(KEY_EVENT_TIMESTAMP);
+    String? eventReason = prefs.getString(KEY_EVENT_REASON);
+    double? eventDistance = prefs.getDouble(KEY_EVENT_DISTANCE);
+    double? eventLat = prefs.getDouble(KEY_EVENT_LATITUDE);
+    double? eventLng = prefs.getDouble(KEY_EVENT_LONGITUDE);
+
     if (eventTimeStr != null) {
       DateTime eventTime = DateTime.parse(eventTimeStr);
+      debugPrint("🚨 [CRITICAL EVENT] Event occurred at: $eventTime, Reason: $eventReason");
 
       // ✅ Finalize GPX if it wasn't finalized before app kill
-      if (needsGpxFinalization && gpxPath != null) {
+      // NOTE: gpxPath outer guard removed — _finalizeGPXFile reads KEY_GPX_FILE_PATH
+      // directly from prefs, so it works for ALL background events (midnight_auto,
+      // time_changed_auto, location_off_auto, permission_revoked_auto)
+      if (needsGpxFinalization) {
+        debugPrint("✅ [CRITICAL EVENT] GPX finalization needed — reason: $eventReason");
         await _finalizeGPXFile(
           eventTime: eventTime,
           finalDistance: eventDistance ?? 0.0,
@@ -256,7 +259,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
         );
       }
 
-      // Show notification
+      // ✅ Show notification ONCE
       Get.snackbar(
         '⚠️ Auto Clock-Out Occurred',
         'Event: ${_getReasonMessage(eventReason ?? 'unknown')}\nTime: ${DateFormat('HH:mm:ss').format(eventTime)}',
@@ -267,7 +270,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
         icon: const Icon(Icons.warning, color: Colors.white),
       );
 
-      // Sync with server using REAL event time
+      // ✅ Sync with server using REAL event time ONCE
       await _syncCriticalEventData(
         eventTime: eventTime,
         reason: eventReason ?? 'unknown',
@@ -278,18 +281,17 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
 
       await _clearCriticalEventData();
 
-      // Clear fast data flags to prevent duplicates
+      // ✅ FIX: Remove bg_clockout_payload ONLY — do NOT remove fastClockOutTime,
+      // fastClockOutDistance, fastClockOutReason before _triggerAutoSync.
+      // Removing them before sync causes syncAllLocalDataToServer to fall back
+      // to DateTime.now() (the CHANGED time) instead of the real event time.
       await prefs.remove('bg_clockout_payload');
-      await prefs.setBool('hasFastClockOutData', false);
-      await prefs.remove('fastClockOutData');
-      await prefs.remove('fastClockOutTime');
-      await prefs.remove('fastClockOutDistance');
-      await prefs.remove('fastClockOutReason');
 
+      // ✅ FIX: Trigger sync FIRST while fastClockOutTime is still intact in prefs
       _triggerAutoSync();
 
     } else if (bgPayloadStr != null && bgPayloadStr.isNotEmpty) {
-      // Fallback for native background payload
+      // ✅ Fallback for native background payload
       debugPrint("🚨 [CRITICAL EVENT] Processing native background payload");
       try {
         final ts = _extractJsonValue(bgPayloadStr, 'timestamp');
@@ -366,15 +368,10 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       await prefs.setBool('hasFastClockOutData', true);
       await prefs.setBool('clockOutPending', true);
 
-      // ✅ Ensure GPX data is marked for sync
-      String? gpxPath = prefs.getString('gpx_final_file') ?? prefs.getString(KEY_GPX_FILE_PATH);
-      if (gpxPath != null) {
-        await prefs.setBool('hasPendingGpxData', true);
-      }
+      // ✅ CRITICAL: Store the event date for GPX processing
+      await prefs.setString('pendingGpxDate', DateFormat('dd-MM-yyyy').format(eventTime));
 
-      debugPrint("✅ [SYNC] Using REAL event time: ${eventTime.toIso8601String()}");
-      debugPrint("✅ [SYNC] Distance: $distance km");
-      debugPrint("✅ [SYNC] GPX: $gpxPath");
+      debugPrint("✅ [SYNC] Using REAL event date: ${DateFormat('dd-MM-yyyy').format(eventTime)}");
 
       // Save attendance out
       await attendanceOutViewModel.fastSaveAttendanceOut(
@@ -383,6 +380,8 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
         isAuto: true,
         reason: reason,
       );
+
+      debugPrint("✅ [SYNC] Critical event data synced with timestamp: $eventTime");
 
       _triggerAutoSync();
 
@@ -416,6 +415,8 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
 
     // Capture current elapsed time for reference
     String elapsedAtEvent = _localElapsedTime;
+    // ✅ CAPTURE CURRENT ELAPSED TIME FOR PAYLOAD (reference only)
+
 
     await prefs.setBool(KEY_HAS_CRITICAL_EVENT, true);
     await prefs.setBool(KEY_IS_TIMER_FROZEN, true);
@@ -425,6 +426,10 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     await prefs.setDouble(KEY_EVENT_LATITUDE, latitude);
     await prefs.setDouble(KEY_EVENT_LONGITUDE, longitude);
     await prefs.setString(KEY_FROZEN_DISPLAY_TIME, "00:00:00");
+
+    // ✅ CRITICAL: Mark GPX file as needing finalization IMMEDIATELY
+    // If app is killed after this point, on next open GPX will be finalized
+    await prefs.setBool(KEY_PENDING_GPX_CLOSE, true);
 
     // ✅ CRITICAL: Save GPX file path for later finalization if needed
     String? gpxPath = prefs.getString(KEY_GPX_FILE_PATH);
@@ -583,6 +588,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     super.dispose();
   }
 
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     debugPrint("🔄 [LIFECYCLE] App state changed: $state");
@@ -590,12 +596,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       // ✅ CHECK CRITICAL EVENT FIRST (before restoring anything)
       _checkAndProcessCriticalEvent();
-
-      // ✅ FIX: Re-init permission tracking state so the delta check (_wasPermissionGranted) is accurate
-      _reinitPermissionState();
-
-      // ✅ THEN check permission status (handles case where permission was revoked while app was killed)
-      _checkPermissionOnResume();
 
       // ✅ THEN restore everything
       _restoreEverything();
@@ -606,95 +606,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       _startNativeMonitoringService();
     } else if (state == AppLifecycleState.paused) {
       debugPrint("✅ [LIFECYCLE] App paused - Native service continues monitoring");
-    }
-  }
-
-  // ✅ FIX: Re-initialize _wasPermissionGranted on resume so the delta check works correctly.
-  Future<void> _reinitPermissionState() async {
-    try {
-      bool current = await _checkPermissionStatus();
-      _wasPermissionGranted = current;
-      debugPrint("🔄 [RESUME] Permission state re-initialized: $_wasPermissionGranted");
-    } catch (e) {
-      debugPrint("⚠️ [RESUME] Failed to re-init permission state: $e");
-    }
-  }
-
-  // ✅ CHECK PERMISSION STATUS WHEN APP RESUMES (for when permission was revoked while app was killed)
-  Future<void> _checkPermissionOnResume() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    bool isClockedIn = prefs.getBool('isClockedIn') ?? false;
-    bool isFrozen = prefs.getBool(KEY_IS_TIMER_FROZEN) ?? false;
-    bool hasCriticalEvent = prefs.getBool(KEY_HAS_CRITICAL_EVENT) ?? false;
-
-    // ✅ FIRST: Check if there's a pending critical event (from native service)
-    if (hasCriticalEvent || isFrozen) {
-      debugPrint("🔐 [RESUME CHECK] Found pending critical event from native service!");
-
-      String? eventTimeStr = prefs.getString(KEY_EVENT_TIMESTAMP);
-      String? eventReason = prefs.getString(KEY_EVENT_REASON);
-
-      if (eventTimeStr != null) {
-        DateTime eventTime = DateTime.parse(eventTimeStr);
-
-        // Show notification that event was captured
-        Get.snackbar(
-          '⚠️ Auto Clock-Out Occurred',
-          '${_getReasonMessage(eventReason ?? 'unknown')}\nTime: ${DateFormat('HH:mm:ss').format(eventTime)}',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.orange.shade700,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 5),
-          icon: const Icon(Icons.warning, color: Colors.white),
-        );
-
-        // Process the critical event
-        await _checkAndProcessCriticalEvent();
-        return;
-      }
-    }
-
-    // ✅ SECOND: Check if permission was revoked while app was closed (fallback)
-    if (!isClockedIn || isFrozen) return;
-
-    LocationPermission permission;
-    bool permissionGranted;
-    try {
-      permission = await Geolocator.checkPermission();
-      permissionGranted = permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse;
-    } catch (e) {
-      debugPrint("⚠️ [RESUME CHECK] Permission check error: $e");
-      permissionGranted = false;
-    }
-
-    if (!permissionGranted) {
-      debugPrint("🔐 [RESUME CHECK] Permission was revoked while app was closed!");
-
-      DateTime eventTime = DateTime.now();
-      double currentDist = await _getCurrentDistance();
-      double lat = locationViewModel.globalLatitude1.value;
-      double lng = locationViewModel.globalLongitude1.value;
-
-      await _saveCriticalEventData(
-        eventTime: eventTime,
-        reason: 'permission_revoked_auto',
-        distance: currentDist,
-        latitude: lat,
-        longitude: lng,
-      );
-
-      await _showUrgentNotification(
-        title: '⚠️ PERMISSION REVOKED',
-        body: 'Auto clockout triggered because location permission was removed',
-        payload: 'permission_revoked_auto',
-      );
-
-      await _handleAutoClockOut(
-        reason: 'permission_revoked_auto',
-        context: context,
-        eventTime: eventTime,
-      );
     }
   }
 
@@ -780,12 +691,15 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
 
   // ✅ START PERMISSION MONITORING (FASTER CHECK) - In-app backup
   void _startPermissionMonitoring() {
-    // ✅ FIX: Capture initial permission state RIGHT NOW before the timer starts.
-    _checkPermissionStatus().then((current) {
-      _wasPermissionGranted = current;
-      _wasLocationAvailable = true;
-      debugPrint("🔄 [MONITOR] Initial state: permission=$_wasPermissionGranted");
-    });
+    // ✅ FIX: Cancel any existing timer FIRST to prevent orphaned duplicate timers
+    _permissionCheckTimer?.cancel();
+    _permissionCheckTimer = null;
+
+    // ✅ FIX: Always reset _lastKnownTime so new session starts fresh
+    _lastKnownTime = null;
+
+    _wasLocationAvailable = true;
+    debugPrint("🔄 [MONITOR] Initial state: locationAvailable=$_wasLocationAvailable");
 
     _permissionCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
       // ✅ Check if timer is frozen first
@@ -835,51 +749,70 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       }
       _wasLocationAvailable = locationEnabled;
 
-      // Check location permissions
-      bool permissionGranted = await _checkPermissionStatus();
-      if (_wasPermissionGranted && !permissionGranted) {
-        debugPrint("🔐 [PERMISSION] Location permission revoked - URGENT auto clockout");
-
-        DateTime eventTime = DateTime.now();
-        double currentDist = await _getCurrentDistance();
-        double lat = locationViewModel.globalLatitude1.value;
-        double lng = locationViewModel.globalLongitude1.value;
-
-        // ✅ SAVE CRITICAL EVENT DATA IMMEDIATELY (captures current elapsed time)
-        await _saveCriticalEventData(
-          eventTime: eventTime,
-          reason: 'permission_revoked_auto',
-          distance: currentDist,
-          latitude: lat,
-          longitude: lng,
-        );
-
-        await _showUrgentNotification(
-          title: '⚠️ PERMISSION REVOKED',
-          body: 'Auto clockout triggered immediately because location permission was removed',
-          payload: 'permission_revoked_auto',
-        );
-
-        await _handleAutoClockOut(
-          reason: 'permission_revoked_auto',
-          context: context,
-          eventTime: eventTime,
-        );
-        return;
-      }
-      _wasPermissionGranted = permissionGranted;
+      // ✅ NEW: Check date/time change (in-app foreground monitoring)
+      // Native service background mein handle karta hai
+      // Yeh check app foreground mein extra safety ke liye
+      await _checkForDateTimeChange();
     });
   }
 
-  Future<bool> _checkPermissionStatus() async {
-    try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      return permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse;
-    } catch (e) {
-      debugPrint("⚠️ [PERMISSION] checkPermissionStatus error: $e — treating as revoked");
-      return false;
+  // ✅ NEW: In-app date/time change detector
+  DateTime? _lastKnownTime;
+
+  Future<void> _checkForDateTimeChange() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool isFrozen = prefs.getBool(KEY_IS_TIMER_FROZEN) ?? false;
+    if (isFrozen || !attendanceViewModel.isClockedIn.value) return;
+
+    final now = DateTime.now();
+
+    if (_lastKnownTime == null) {
+      _lastKnownTime = now;
+      return;
     }
+
+    // ✅ FIX: Tolerance -30/+120 seconds — safe for async ops
+    final expectedDiff = now.difference(_lastKnownTime!).inSeconds;
+    if (expectedDiff < -30 || expectedDiff > 120) {
+      debugPrint("⏰ [IN-APP] Date/Time change detected! Expected ~2s diff, got ${expectedDiff}s");
+
+      // ✅ FIX: Capture _lastKnownTime as eventTime BEFORE resetting to null
+      // _lastKnownTime = time BEFORE user changed = REAL clockout time ✅
+      DateTime eventTime = _lastKnownTime!;
+
+      // ✅ FIX: Reset IMMEDIATELY to prevent re-entry on next timer tick
+      _lastKnownTime = null;
+
+      // ✅ FIX: Cancel timer immediately so no more ticks fire during async ops
+      _permissionCheckTimer?.cancel();
+      _permissionCheckTimer = null;
+      double currentDist = await _getCurrentDistance();
+      double lat = locationViewModel.globalLatitude1.value;
+      double lng = locationViewModel.globalLongitude1.value;
+
+      await _saveCriticalEventData(
+        eventTime: eventTime,
+        reason: 'time_changed_auto',
+        distance: currentDist,
+        latitude: lat,
+        longitude: lng,
+      );
+
+      await _showUrgentNotification(
+        title: '⚠️ DATE/TIME CHANGED',
+        body: 'Auto clockout triggered because device date/time was changed',
+        payload: 'time_changed_auto',
+      );
+
+      await _handleAutoClockOut(
+        reason: 'time_changed_auto',
+        context: context,
+        eventTime: eventTime,
+      );
+      return;
+    }
+
+    _lastKnownTime = now;
   }
 
   Future<bool> _checkLocationPermission(BuildContext context) async {
@@ -985,7 +918,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     }
     _autoClockOutInProgress = true;
 
-    // ✅ CRITICAL: Capture event time immediately
     DateTime clockOutTime = eventTime ?? DateTime.now();
 
     // ✅ CRITICAL: Capture location data immediately before any async operations
@@ -999,11 +931,12 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     debugPrint("⚡ [AUTO CLOCKOUT] Distance: $finalDistance");
 
     try {
-      // ✅ STEP 1: Stop all services immediately to prevent new data
       _stopLocationMonitoring();
       _localBackupTimer?.cancel();
       _midnightClockOutTimer?.cancel();
       _permissionCheckTimer?.cancel();
+      // ✅ FIX: Reset so next clock-in starts fresh
+      _lastKnownTime = null;
 
       // ✅ STEP 2: Stop background service immediately
       final service = FlutterBackgroundService();
@@ -1035,7 +968,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       await prefs.setString('fastClockOutTime', clockOutTime.toIso8601String());
       await prefs.setBool('clockOutPending', true);
       await prefs.setBool('hasFastClockOutData', true);
-      await prefs.setString('fastClockOutReason', reason);
 
       // ✅ Save location data for sync
       await prefs.setDouble('pendingLatOut', finalLat);
@@ -1046,6 +978,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       _localClockInTime = null;
       locationViewModel.isClockedIn.value = false;
       attendanceViewModel.isClockedIn.value = false;
+
       _isRiveAnimationActive = false;
 
       if (_themeMenuIcon.isNotEmpty && _themeMenuIcon[0].riveIcon.status != null) {
@@ -1061,6 +994,13 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       );
 
       await DailyWorkTimeManager.recordClockOut(clockOutTime);
+
+      // ✅ FIX: Clear critical event flags BEFORE triggering sync so that
+      // _checkAndProcessCriticalEvent (fired on app resume) does NOT re-run
+      // and does NOT delete fastClockOutTime while sync is in progress.
+      await _clearCriticalEventData();
+      SharedPreferences prefsClean = await SharedPreferences.getInstance();
+      await prefsClean.remove('bg_clockout_payload');
 
       // ✅ STEP 9: Mark for immediate sync when online
       _triggerAutoSync();
@@ -1090,8 +1030,8 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
         return 'You have been automatically clocked out at 11:58 PM';
       case 'location_off_auto':
         return 'Auto clockout because location services were turned off';
-      case 'permission_revoked_auto':
-        return 'Auto clockout because location permission was removed';
+      case 'time_changed_auto':
+        return 'Auto clockout because device date/time was changed';
       default:
         return 'Auto clockout completed successfully';
     }
@@ -1201,7 +1141,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     }
   }
 
-  // ✅ MODIFIED: Enhanced auto-sync to handle GPX
+  // ✅ MODIFIED: Enhanced auto-sync to handle GPX with correct date
   void _triggerAutoSync() async {
     if (_isSyncing) {
       debugPrint('⏸️ Auto-sync already in progress - skipping');
@@ -1218,6 +1158,18 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       bool hasPendingGpx = prefs.getBool('hasPendingGpxData') ?? false;
       String? gpxFilePath = prefs.getString('gpx_final_file');
 
+      // ✅ CRITICAL: Get the pending GPX date (the date when event occurred)
+      String? pendingGpxDate = prefs.getString('pendingGpxDate');
+      DateTime? eventDate;
+      if (pendingGpxDate != null && pendingGpxDate.isNotEmpty) {
+        try {
+          eventDate = DateFormat('dd-MM-yyyy').parse(pendingGpxDate);
+          debugPrint("📅 [AUTO-SYNC] Using pending GPX date: $pendingGpxDate");
+        } catch (e) {
+          debugPrint("⚠️ [AUTO-SYNC] Error parsing pendingGpxDate: $e");
+        }
+      }
+
       Get.snackbar(
         'Syncing Data',
         hasPendingGpx ? 'Syncing attendance & GPS data...' : 'Syncing attendance data...',
@@ -1227,11 +1179,18 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
         duration: const Duration(seconds: 3),
       );
 
-      // ✅ First consolidate and save any pending GPX data
+      // ✅ First consolidate and save any pending GPX data with CORRECT DATE
       if (hasPendingGpx && gpxFilePath != null) {
         try {
-          await locationViewModel.consolidateDailyGPXData();
-          await locationViewModel.saveLocationFromConsolidatedFile();
+          if (eventDate != null) {
+            // ✅ Use the event date for consolidation, not current date
+            await locationViewModel.consolidateDailyGPXDataForDate(eventDate);
+            await locationViewModel.saveLocationFromConsolidatedFileForDate(eventDate);
+          } else {
+            // Fallback to current date if no event date stored
+            await locationViewModel.consolidateDailyGPXData();
+            await locationViewModel.saveLocationFromConsolidatedFile();
+          }
           debugPrint("✅ [AUTO-SYNC] GPX data processed");
         } catch (e) {
           debugPrint("⚠️ [AUTO-SYNC] GPX processing error: $e");
@@ -1247,6 +1206,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       await prefs.setBool('hasFastClockOutData', false);
       await prefs.setBool('hasPendingGpxData', false);
       await prefs.remove(KEY_PENDING_GPX_CLOSE);
+      await prefs.remove('pendingGpxDate'); // ✅ Clear the pending date
 
       debugPrint('✅ [AUTO-SYNC] Completed');
 
@@ -1294,6 +1254,8 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
 
       _startLocalBackupTimer();
       _scheduleMidnightClockOut();
+      // ✅ FIX: Reset _lastKnownTime before monitoring starts on restore
+      _lastKnownTime = null;
       _startPermissionMonitoring();
 
       if (mounted) {
@@ -1597,6 +1559,11 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
       _stopLocationMonitoring();
       _localBackupTimer?.cancel();
       _midnightClockOutTimer?.cancel();
+      // ✅ FIX: Cancel permission timer (was missing — orphaned timer caused false auto-clockout)
+      _permissionCheckTimer?.cancel();
+      _permissionCheckTimer = null;
+      // ✅ FIX: Reset so next clock-in starts fresh
+      _lastKnownTime = null;
 
       double finalDistance = _currentDistance;
       if (finalDistance <= 0) {
@@ -1673,7 +1640,8 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
 
       Get.snackbar(
         '✅ Clock Out Complete',
-        'Data saved locally\nDistance: ${finalDistance.toStringAsFixed(2)} km',
+        // 'Data saved locally\nDistance: ${finalDistance.toStringAsFixed(2)} km',
+        'Data saved locally',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.green,
         colorText: Colors.white,
@@ -1682,6 +1650,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
 
       debugPrint("✅ [CLOCK-OUT] COMPLETED IN <3 SECONDS");
 
+      // ✅ FIXED: Pass the actual clockOutTime to use correct date
       _scheduleHeavyOperations(clockOutTime, finalDistance);
     } catch (e) {
       debugPrint("❌ [FAST CLOCK-OUT] Error: $e");
@@ -1719,6 +1688,11 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     await prefs.remove('hasPendingGpxData');
     await prefs.remove('gpx_final_file');
     await prefs.remove('event_gpx_file_path');
+    // ✅ FIX: Reset so new session doesn't trigger false date/time change
+    _lastKnownTime = null;
+    // ✅ FIX: Cancel any lingering timer from previous session
+    _permissionCheckTimer?.cancel();
+    _permissionCheckTimer = null;
     _localElapsedTime = '00:00:00';
 
     bool hasPermission = await _checkLocationPermission(context);
@@ -1849,12 +1823,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     _wasLocationAvailable = true;
     _autoClockOutInProgress = false;
 
-    // ✅ FIX: Capture true initial permission state so the delta check is accurate from the first tick
-    _checkPermissionStatus().then((current) {
-      _wasPermissionGranted = current;
-      debugPrint("🔄 [LOCATION MONITOR] Initial permission state: $_wasPermissionGranted");
-    });
-
     _locationMonitorTimer =
         Timer.periodic(const Duration(seconds: 3), (timer) async {
           // ✅ Check if frozen
@@ -1903,38 +1871,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
             return;
           }
           _wasLocationAvailable = currentLocationAvailable;
-
-          bool currentPermissionGranted = await _checkPermissionStatus();
-
-          if (_wasPermissionGranted && !currentPermissionGranted) {
-            debugPrint("🔐 [PERMISSION] Permission REVOKED - URGENT auto clock-out");
-
-            DateTime eventTime = DateTime.now();
-            double currentDist = await _getCurrentDistance();
-            double lat = locationViewModel.globalLatitude1.value;
-            double lng = locationViewModel.globalLongitude1.value;
-
-            await _saveCriticalEventData(
-              eventTime: eventTime,
-              reason: 'permission_revoked_auto',
-              distance: currentDist,
-              latitude: lat,
-              longitude: lng,
-            );
-
-            await _showUrgentNotification(
-              title: '⚠️ PERMISSION REVOKED',
-              body: 'Auto clockout triggered immediately because location permission was removed',
-              payload: 'permission_revoked_auto',
-            );
-
-            await _handleAutoClockOut(
-              reason: 'permission_revoked_auto',
-              context: context,
-              eventTime: eventTime,
-            );
-          }
-          _wasPermissionGranted = currentPermissionGranted;
         });
   }
 
@@ -1965,29 +1901,29 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
     _autoClockOutInProgress = false;
   }
 
+  // ✅ FIXED: Modified _scheduleHeavyOperations to accept eventTime parameter
   void _scheduleHeavyOperations(DateTime clockOutTime, double distance) async {
     debugPrint("🔄 Scheduling background operations...");
 
     Timer(Duration(seconds: 5), () async {
       try {
         debugPrint("🔄 [BACKGROUND] Starting heavy operations...");
+        debugPrint("🔄 [BACKGROUND] Using event date: ${DateFormat('dd-MM-yyyy').format(clockOutTime)}");
 
-        await locationViewModel.consolidateDailyGPXData();
-        await locationViewModel.saveLocationFromConsolidatedFile();
+        // ✅ CRITICAL FIX: Pass the actual event time to GPX consolidation
+        // so it uses the correct date (14-03) instead of current date (15-03)
+        await locationViewModel.consolidateDailyGPXDataForDate(clockOutTime);
+        await locationViewModel.saveLocationFromConsolidatedFileForDate(clockOutTime);
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
 
         await prefs.setDouble('fullClockOutDistance', distance);
-        await prefs.setString(
-            'fullClockOutTime', clockOutTime.toIso8601String());
-        await prefs.setDouble(
-            'pendingLatOut', locationViewModel.globalLatitude1.value);
-        await prefs.setDouble(
-            'pendingLngOut', locationViewModel.globalLongitude1.value);
-        await prefs.setString(
-            'pendingAddress', locationViewModel.shopAddress.value);
+        await prefs.setString('fullClockOutTime', clockOutTime.toIso8601String());
+        await prefs.setDouble('pendingLatOut', locationViewModel.globalLatitude1.value);
+        await prefs.setDouble('pendingLngOut', locationViewModel.globalLongitude1.value);
+        await prefs.setString('pendingAddress', locationViewModel.shopAddress.value);
 
-        debugPrint("✅ [BACKGROUND] Heavy operations completed");
+        debugPrint("✅ [BACKGROUND] Heavy operations completed for date: ${DateFormat('dd-MM-yyyy').format(clockOutTime)}");
 
         _triggerPostClockOutSync();
       } catch (e) {

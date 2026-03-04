@@ -38,8 +38,8 @@ android {
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion 35
         //for updated
-        versionCode = 37
-        versionName = "37.0.0"
+        versionCode = 39
+        versionName = "39.0.0"
 //        versionCode = 30
 //        versionName = "30.0.0"
     }

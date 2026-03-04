@@ -156,6 +156,7 @@ class AttendanceOutViewModel extends GetxController {
     );
 
     // ✅ STEP 2: CREATE ATTENDANCE OUT MODEL WITH DISTANCE
+    // ✅ STRICT FIX: attendance_out_time aur attendance_out_date ZAROOR set karo
     AttendanceOutModel attendanceOutModel = AttendanceOutModel(
       attendance_out_id: attendanceId,
       user_id: user_id,
@@ -165,6 +166,8 @@ class AttendanceOutViewModel extends GetxController {
       lng_out: locationViewModel.globalLongitude1.value,
       address: address,
       reason: reason,
+      attendance_out_time: actualClockOutTime, // ✅ REAL EVENT TIME
+      attendance_out_date: actualClockOutTime, // ✅ REAL EVENT DATE
     );
 
     debugPrint("📊 [ATTENDANCE OUT DATA]");
@@ -243,6 +246,8 @@ class AttendanceOutViewModel extends GetxController {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         // Create model
+        // ✅ STRICT FIX: attendance_out_time aur attendance_out_date ZAROOR set karo
+        // Agar null chhoda to toMap() mein DateTime.now() (app-open time) jaata tha server ko
         AttendanceOutModel attendanceOutModel = AttendanceOutModel(
           attendance_out_id: attendanceId,
           user_id: user_id,
@@ -252,6 +257,8 @@ class AttendanceOutViewModel extends GetxController {
           lng_out: locationViewModel.globalLongitude1.value,
           address: locationViewModel.shopAddress.value,
           reason: reason,
+          attendance_out_time: clockOutTime, // ✅ REAL EVENT TIME
+          attendance_out_date: clockOutTime, // ✅ REAL EVENT DATE
         );
 
         // Save to database in background
@@ -434,9 +441,12 @@ class AttendanceOutViewModel extends GetxController {
         debugPrint("🌐 [API POST] No internet - Data saved locally, will sync later");
 
         // Mark for auto-sync
+        // ✅ FIX: Parse real clockOutTime from address field or use current as last resort
+        // Offline backup mein DateTime.now() mat use karo — real time chahiye
+        DateTime offlineTime = _parseTimeFromAddress(attendanceOutModel.address) ?? DateTime.now();
         await _saveToPrefsAsBackup(
           attendanceId: attendanceOutModel.attendance_out_id,
-          clockOutTime: DateTime.now(),
+          clockOutTime: offlineTime,
           totalTime: attendanceOutModel.total_time,
           totalDistance: attendanceOutModel.total_distance,
           address: attendanceOutModel.address,
@@ -449,6 +459,29 @@ class AttendanceOutViewModel extends GetxController {
 
       // Data remains in SharedPreferences backup, will retry later
     }
+  }
+
+  // ✅ HELPER: Parse time from address string (e.g. "... Auto clock-out: reason at 03:45 PM")
+  // Used as fallback when explicit clockOutTime not available
+  DateTime? _parseTimeFromAddress(String address) {
+    try {
+      // Address format: "... (Auto clock-out: reason at 03:45 PM)"
+      final regex = RegExp(r'at (\d{2}:\d{2} [AP]M)');
+      final match = regex.firstMatch(address);
+      if (match != null) {
+        String timeStr = match.group(1) ?? '';
+        DateTime now = DateTime.now();
+        // Parse HH:mm AM/PM
+        final timeParts = timeStr.split(RegExp(r'[: ]'));
+        int hour = int.parse(timeParts[0]);
+        int minute = int.parse(timeParts[1]);
+        bool isPM = timeParts[2] == 'PM';
+        if (isPM && hour != 12) hour += 12;
+        if (!isPM && hour == 12) hour = 0;
+        return DateTime(now.year, now.month, now.day, hour, minute);
+      }
+    } catch (_) {}
+    return null;
   }
 
   // ✅ NEW METHOD: Try to post to API in background (for backward compatibility)
@@ -494,21 +527,45 @@ class AttendanceOutViewModel extends GetxController {
         debugPrint("   - Reason: ${data['backup_reason']}");
         debugPrint("   - Distance: ${data['backup_totalDistance']} km");
 
-        // Add to database
-        addAttendanceOut(
-          AttendanceOutModel(
-            attendance_out_id: data['backup_attendanceId'],
-            user_id: data['backup_userId'],
-            total_distance: data['backup_totalDistance'],
-            total_time: data['backup_totalTime'],
-            lat_out: data['backup_latOut'],
-            lng_out: data['backup_lngOut'],
-            address: data['backup_address'],
-          ),
-        );
+        // ✅ FIX: Use real saved clockOutTime from backup JSON
+        // Previously clock_out_time ignore hota tha — ab real time se restore
+        String? backupTimeStr = data['backup_clockOutTime'] as String?;
+        if (backupTimeStr != null) {
+          DateTime realBackupTime = DateTime.parse(backupTimeStr);
+          double backupDist = (data['backup_totalDistance'] as num?)?.toDouble() ?? 0.0;
+          String backupReason = data['backup_reason'] as String? ?? 'backup_restored';
 
-        // Try to post to API again
-        _tryPostToApiInBackground(data['backup_attendanceId']);
+          debugPrint("✅ [BACKUP RESTORE] Using real saved time: $realBackupTime");
+
+          await saveFormAttendanceOutWithPrefs(
+            clockOutTime: realBackupTime,
+            totalDistance: backupDist,
+            isAuto: true,
+            reason: backupReason,
+          );
+
+          await prefs.setBool('hasBackupClockOutData', false);
+          await prefs.remove('backupClockOutData');
+        } else {
+          // Fallback to old approach
+          String? fbTimeStr = data['backup_clockOutTime'] as String?;
+          DateTime fbTime = fbTimeStr != null ? DateTime.tryParse(fbTimeStr) ?? DateTime.now() : DateTime.now();
+          addAttendanceOut(
+            AttendanceOutModel(
+              attendance_out_id: data['backup_attendanceId'] ?? '',
+              user_id: data['backup_userId'] ?? '',
+              total_distance: (data['backup_totalDistance'] as num?)?.toDouble() ?? 0.0,
+              total_time: data['backup_totalTime'] ?? '00:00:00',
+              lat_out: (data['backup_latOut'] as num?)?.toDouble() ?? 0.0,
+              lng_out: (data['backup_lngOut'] as num?)?.toDouble() ?? 0.0,
+              address: data['backup_address'] ?? '',
+              attendance_out_time: fbTime, // ✅ REAL TIME
+              attendance_out_date: fbTime, // ✅ REAL DATE
+            ),
+          );
+          // Try to post to API again
+          _tryPostToApiInBackground(data['backup_attendanceId'] ?? '');
+        }
 
       } catch (e) {
         debugPrint("❌ Error restoring backup: $e");
@@ -521,35 +578,79 @@ class AttendanceOutViewModel extends GetxController {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     bool hasFastData = prefs.getBool('hasFastClockOutData') ?? false;
 
-    if (hasFastData) {
-      debugPrint("🔄 Restoring fast-saved clock-out data...");
+    if (!hasFastData) return;
 
-      try {
+    // ✅ STRICT FIX STEP 1:
+    // Agar critical_event_pending hai → timer_card.dart ka _checkAndProcessCriticalEvent handle karega
+    // Yahan se mat chedo — warna DUPLICATE record + wrong time dono problems aayengi
+    bool hasCriticalEvent = prefs.getBool('has_critical_event_pending') ?? false;
+    if (hasCriticalEvent) {
+      debugPrint("⏭️ [RESTORE] Critical event pending — skipping, timer_card will handle it");
+      return;
+    }
+
+    debugPrint("🔄 [RESTORE] Restoring fast-saved clock-out data...");
+
+    try {
+      // ✅ STRICT FIX STEP 2:
+      // PEHLE individual key "fastClockOutTime" padhne ki koshish karo
+      // Kotlin service yeh key seedha set karta hai — JSON blob nahi banta Kotlin se
+      // Flutter ka fastSaveAttendanceOut dono set karta hai (JSON + individual)
+      String? directTimeStr = prefs.getString('fastClockOutTime');
+
+      // Agar individual key nahi mila to JSON blob try karo
+      if (directTimeStr == null) {
         String jsonData = prefs.getString('fastClockOutData') ?? '{}';
-        Map<String, dynamic> data = json.decode(jsonData);
+        try {
+          Map<String, dynamic> data = json.decode(jsonData);
+          directTimeStr = data['fast_clockOutTime'] as String?;
+        } catch (_) {}
+      }
 
-        // Create proper model
-        AttendanceOutModel model = AttendanceOutModel(
-          attendance_out_id: data['fast_attendanceId'],
-          user_id: data['fast_userId'],
-          total_distance: data['fast_totalDistance'],
-          total_time: data['fast_totalTime'],
-          lat_out: data['fast_latOut'],
-          lng_out: data['fast_lngOut'],
-          address: data['fast_address'],
+      if (directTimeStr != null && directTimeStr.isNotEmpty) {
+        DateTime realClockOutTime = DateTime.parse(directTimeStr);
+
+        // Distance — individual key ya JSON se
+        double realDistance = prefs.getDouble('fastClockOutDistance') ?? 0.0;
+        if (realDistance == 0.0) {
+          String jsonData = prefs.getString('fastClockOutData') ?? '{}';
+          try {
+            Map<String, dynamic> data = json.decode(jsonData);
+            realDistance = (data['fast_totalDistance'] as num?)?.toDouble() ?? 0.0;
+          } catch (_) {}
+        }
+
+        String realReason = prefs.getString('fastClockOutReason') ?? 'background_auto';
+
+        debugPrint("✅ [RESTORE] REAL event time: $realClockOutTime");
+        debugPrint("✅ [RESTORE] Distance: $realDistance km, Reason: $realReason");
+
+        // ✅ STRICT FIX STEP 3: saveFormAttendanceOutWithPrefs se real time use karo
+        // Yeh function clockOutTime se totalTime calculate karta hai — DateTime.now() nahi
+        await saveFormAttendanceOutWithPrefs(
+          clockOutTime: realClockOutTime,
+          totalDistance: realDistance,
+          isAuto: true,
+          reason: realReason,
         );
 
-        // Add to database
-        addAttendanceOut(model);
+        // ✅ Clear karo AFTER successful restore
+        await prefs.setBool('hasFastClockOutData', false);
+        await prefs.remove('fastClockOutData');
+        await prefs.remove('fastClockOutTime');
+        await prefs.remove('fastClockOutDistance');
+        await prefs.remove('fastClockOutReason');
 
-        debugPrint("✅ Fast data restored: ${model.total_distance} km");
+        debugPrint("✅ [RESTORE] Completed with REAL time: $realClockOutTime");
 
-        // Try to sync
-        _scheduleApiSync(model);
-
-      } catch (e) {
-        debugPrint("❌ Error restoring fast data: $e");
+      } else {
+        // ✅ STRICT FIX STEP 4: Koi time nahi mila — safe skip karo, wrong time post mat karo
+        debugPrint("⚠️ [RESTORE] No valid timestamp found — skipping to avoid wrong time post");
+        // hasFastClockOutData clear nahi karo — shayad baad mein critical event handler set kare
       }
+
+    } catch (e) {
+      debugPrint("❌ [RESTORE] Error: $e");
     }
   }
 
@@ -587,6 +688,7 @@ class AttendanceOutViewModel extends GetxController {
     }
 
     // Create attendance out model
+    // ✅ STRICT FIX: attendance_out_time aur attendance_out_date ZAROOR set karo
     AttendanceOutModel attendanceOutModel = AttendanceOutModel(
       attendance_out_id: attendanceId,
       user_id: user_id,
@@ -595,6 +697,8 @@ class AttendanceOutViewModel extends GetxController {
       lat_out: locationViewModel.globalLatitude1.value,
       lng_out: locationViewModel.globalLongitude1.value,
       address: finalAddress.isNotEmpty ? finalAddress : locationViewModel.shopAddress.value,
+      attendance_out_time: clockOutTime, // ✅ REAL EVENT TIME
+      attendance_out_date: clockOutTime, // ✅ REAL EVENT DATE
     );
 
     // Save to database

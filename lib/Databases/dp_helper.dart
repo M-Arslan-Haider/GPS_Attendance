@@ -26,7 +26,7 @@ class DBHelper extends GetxService {
 
     var db = openDatabase(
       path,
-      version: 14, // Increased to 13 for leave table updates
+      version: 15, // Increased to 13 for leave table updates
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -97,92 +97,175 @@ class DBHelper extends GetxService {
     }
   }
 
-  _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    debugPrint('🔄 Upgrading database from version $oldVersion to $newVersion');
+  // _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  //   debugPrint('🔄 Upgrading database from version $oldVersion to $newVersion');
+  //
+  //   if (oldVersion < 14) {
+  //     try {
+  //       // Check current table structure
+  //       final columns = await db.rawQuery("PRAGMA table_info($leaveTable)");
+  //       final columnNames = columns.map((c) => c['name'] as String).toList();
+  //
+  //       debugPrint('📋 Current leaveTable columns: $columnNames');
+  //
+  //       // Add missing columns if they don't exist
+  //       if (!columnNames.contains('attachment_image')) {
+  //         await db.execute(
+  //             "ALTER TABLE $leaveTable ADD COLUMN attachment_image TEXT");
+  //         debugPrint('✅ Added attachment_image column to leaveTable');
+  //       }
+  //
+  //       if (!columnNames.contains('has_attachment')) {
+  //         await db.execute(
+  //             "ALTER TABLE $leaveTable ADD COLUMN has_attachment INTEGER DEFAULT 0");
+  //         debugPrint('✅ Added has_attachment column to leaveTable');
+  //       }
+  //
+  //       // If table doesn't exist at all, create it fresh
+  //       if (columns.isEmpty) {
+  //         await db.execute('''
+  //           CREATE TABLE IF NOT EXISTS $leaveTable(
+  //             id TEXT PRIMARY KEY,
+  //             leave_id TEXT UNIQUE,
+  //             booker_id TEXT,
+  //             booker_name TEXT,
+  //             leave_type TEXT,
+  //             start_date TEXT,
+  //             end_date TEXT,
+  //             total_days INTEGER,
+  //             is_half_day INTEGER DEFAULT 0,
+  //             reason TEXT,
+  //             attachment_data BLOB,
+  //             attachment_image TEXT,
+  //             application_date TEXT,
+  //             application_time TEXT,
+  //             status TEXT DEFAULT 'pending',
+  //             posted INTEGER DEFAULT 0,
+  //             has_attachment INTEGER DEFAULT 0
+  //           )
+  //         ''');
+  //         debugPrint('✅ Created fresh leaveTable');
+  //       }
+  //
+  //       debugPrint('✅ Database upgraded to version 14 successfully');
+  //     } catch (e) {
+  //       debugPrint('❌ Error during database upgrade: $e');
+  //
+  //       // Fallback: Drop and recreate table
+  //       try {
+  //         await db.execute("DROP TABLE IF EXISTS $leaveTable");
+  //
+  //         await db.execute('''
+  //           CREATE TABLE IF NOT EXISTS $leaveTable(
+  //             id TEXT PRIMARY KEY,
+  //             leave_id TEXT UNIQUE,
+  //             booker_id TEXT,
+  //             booker_name TEXT,
+  //             leave_type TEXT,
+  //             start_date TEXT,
+  //             end_date TEXT,
+  //             total_days INTEGER,
+  //             is_half_day INTEGER DEFAULT 0,
+  //             reason TEXT,
+  //             attachment_data BLOB,
+  //             attachment_image TEXT,
+  //             application_date TEXT,
+  //             application_time TEXT,
+  //             status TEXT DEFAULT 'pending',
+  //             posted INTEGER DEFAULT 0,
+  //             has_attachment INTEGER DEFAULT 0
+  //           )
+  //         ''');
+  //
+  //         debugPrint('✅ Recreated leaveTable with all columns');
+  //       } catch (e2) {
+  //         debugPrint('❌ Failed to recreate table: $e2');
+  //       }
+  //     }
+  //   }
+  // }
 
-    if (oldVersion < 14) {
+  _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    debugPrint(
+        '🔄 Upgrading database from version $oldVersion to $newVersion');
+
+    // ================= LEAVE TABLE MIGRATION =================
+    if (oldVersion < 15) {
       try {
-        // Check current table structure
-        final columns = await db.rawQuery("PRAGMA table_info($leaveTable)");
-        final columnNames = columns.map((c) => c['name'] as String).toList();
+        final columns =
+        await db.rawQuery("PRAGMA table_info($leaveTable)");
+        final columnNames =
+        columns.map((c) => c['name'] as String).toList();
 
         debugPrint('📋 Current leaveTable columns: $columnNames');
 
-        // Add missing columns if they don't exist
+        // Add missing columns
         if (!columnNames.contains('attachment_image')) {
           await db.execute(
               "ALTER TABLE $leaveTable ADD COLUMN attachment_image TEXT");
-          debugPrint('✅ Added attachment_image column to leaveTable');
+          debugPrint('✅ Added attachment_image column');
         }
 
         if (!columnNames.contains('has_attachment')) {
           await db.execute(
               "ALTER TABLE $leaveTable ADD COLUMN has_attachment INTEGER DEFAULT 0");
-          debugPrint('✅ Added has_attachment column to leaveTable');
+          debugPrint('✅ Added has_attachment column');
         }
 
-        // If table doesn't exist at all, create it fresh
+        // If table somehow not exist
         if (columns.isEmpty) {
           await db.execute('''
-            CREATE TABLE IF NOT EXISTS $leaveTable(
-              id TEXT PRIMARY KEY,
-              leave_id TEXT UNIQUE,
-              booker_id TEXT,
-              booker_name TEXT,
-              leave_type TEXT,
-              start_date TEXT,
-              end_date TEXT,
-              total_days INTEGER,
-              is_half_day INTEGER DEFAULT 0,
-              reason TEXT,
-              attachment_data BLOB,
-              attachment_image TEXT,
-              application_date TEXT,
-              application_time TEXT,
-              status TEXT DEFAULT 'pending',
-              posted INTEGER DEFAULT 0,
-              has_attachment INTEGER DEFAULT 0
-            )
-          ''');
+          CREATE TABLE IF NOT EXISTS $leaveTable(
+            id TEXT PRIMARY KEY,
+            leave_id TEXT UNIQUE,
+            booker_id TEXT,
+            booker_name TEXT,
+            leave_type TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            total_days INTEGER,
+            is_half_day INTEGER DEFAULT 0,
+            reason TEXT,
+            attachment_data BLOB,
+            attachment_image TEXT,
+            application_date TEXT,
+            application_time TEXT,
+            status TEXT DEFAULT 'pending',
+            posted INTEGER DEFAULT 0,
+            has_attachment INTEGER DEFAULT 0
+          )
+        ''');
           debugPrint('✅ Created fresh leaveTable');
         }
 
-        debugPrint('✅ Database upgraded to version 14 successfully');
+        debugPrint('✅ Leave table migration completed');
       } catch (e) {
-        debugPrint('❌ Error during database upgrade: $e');
-
-        // Fallback: Drop and recreate table
-        try {
-          await db.execute("DROP TABLE IF EXISTS $leaveTable");
-
-          await db.execute('''
-            CREATE TABLE IF NOT EXISTS $leaveTable(
-              id TEXT PRIMARY KEY,
-              leave_id TEXT UNIQUE,
-              booker_id TEXT,
-              booker_name TEXT,
-              leave_type TEXT,
-              start_date TEXT,
-              end_date TEXT,
-              total_days INTEGER,
-              is_half_day INTEGER DEFAULT 0,
-              reason TEXT,
-              attachment_data BLOB,
-              attachment_image TEXT,
-              application_date TEXT,
-              application_time TEXT,
-              status TEXT DEFAULT 'pending',
-              posted INTEGER DEFAULT 0,
-              has_attachment INTEGER DEFAULT 0
-            )
-          ''');
-
-          debugPrint('✅ Recreated leaveTable with all columns');
-        } catch (e2) {
-          debugPrint('❌ Failed to recreate table: $e2');
-        }
+        debugPrint('❌ Leave table migration error: $e');
       }
     }
+
+    // ================= ATTENDANCE TABLE MIGRATION =================
+    try {
+      final attendanceColumns =
+      await db.rawQuery("PRAGMA table_info($attendanceTableName)");
+
+      final attendanceColumnNames =
+      attendanceColumns.map((c) => c['name'] as String).toList();
+
+      debugPrint(
+          '📋 Current attendanceTable columns: $attendanceColumnNames');
+
+      // ✅ ADD reason COLUMN IF NOT EXISTS
+      if (!attendanceColumnNames.contains('reason')) {
+        await db.execute(
+            "ALTER TABLE $attendanceTableName ADD COLUMN reason TEXT");
+        debugPrint('✅ Added reason column to attendance table');
+      }
+    } catch (e) {
+      debugPrint('❌ Attendance table migration error: $e');
+    }
+
+    debugPrint('✅ Database upgrade finished');
   }
 
   Future<void> clearData() async {

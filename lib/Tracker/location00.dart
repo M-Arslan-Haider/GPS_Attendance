@@ -40,6 +40,8 @@ class LocationService {
   final Lock _fileWriteLock = Lock();
   Timer? _writeDebounceTimer;
   Timer? _forcedUpdateTimer; // ✅ NEW: Forces points even when stationary
+  Timer? _firebaseUpdateTimer;   // ✅ Add here
+  Position? _latestPosition;      // ✅ Add here
   static const Duration _writeDebounceDelay = Duration(seconds: 1);
   bool _pendingWrite = false;
 
@@ -73,11 +75,18 @@ class LocationService {
   Future<void> _configureLocationSettings() async {
     // For Android: Use bestForNavigation with minimal filtering
     // This bypasses FLP and uses raw GNSS when possible
+
     _locationSettings = AndroidSettings(
-      accuracy: LocationAccuracy.bestForNavigation, // Raw GPS, no FLP fusion
-      distanceFilter: 1, // 1 meter - capture every tiny movement
-      forceLocationManager: true, // Force raw GPS, ignore FLP
-      intervalDuration: const Duration(seconds: 1), // Check every second
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, // optional: 10 meter movement detect kare
+      forceLocationManager: false,
+      intervalDuration: const Duration(minutes: 1), // ✅ MAIN CHANGE
+
+    // _locationSettings = AndroidSettings(
+    //   accuracy: LocationAccuracy.bestForNavigation, // Raw GPS, no FLP fusion
+    //   distanceFilter: 1, // 1 meter - capture every tiny movement
+    //   forceLocationManager: true, // Force raw GPS, ignore FLP
+    //   intervalDuration: const Duration(seconds: 1), // Check every second
       // foregroundNotificationConfig: const ForegroundNotificationConfig(
       //   notificationText: 'Ultra GPS Tracking Active',
       //   notificationTitle: 'Recording precise location',
@@ -464,7 +473,16 @@ class LocationService {
       timestamp: position.timestamp,
     );
 
-    await _updateFirebase(position);
+    // await _updateFirebase(position);
+    _latestPosition = position;
+
+    if (_firebaseUpdateTimer == null || !_firebaseUpdateTimer!.isActive) {
+      _firebaseUpdateTimer = Timer(const Duration(minutes: 1), () async {
+        if (_latestPosition != null) {
+          await _updateFirebase(_latestPosition!);
+        }
+      });
+    }
   }
 
   void _debouncedUpdateGpxFile() {

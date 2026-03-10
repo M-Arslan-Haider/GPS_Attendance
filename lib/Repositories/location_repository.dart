@@ -1,156 +1,202 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../Database/db_helper.dart';
 import '../Database/util.dart';
-import '../models/location_model.dart';
-import '../../constants.dart';
+import '../Models/location_model.dart';
+import '../constants.dart';
 
 class LocationRepository {
-  final DBHelper dbHelper = DBHelper();
+  DBHelper dbHelper = DBHelper();
 
-  // Get all location records
-  Future<List<LocationModel>> getLocations() async {
-    final db = await dbHelper.db;
-    final List<Map<String, dynamic>> maps = await db.query(
+  Future<List<LocationModel>> getLocation() async {
+    var dbClient = await dbHelper.db;
+    List<Map<String, dynamic>> maps = await dbClient.query(
       locationTableName,
-      orderBy: 'location_date DESC',
+      columns: [
+        'location_id',
+        'location_date',
+        'location_time',
+        'file_name',
+        'emp_id',
+        'booker_name',
+        'total_distance',
+        'body',
+        'posted'
+      ],
     );
 
-    return List.generate(maps.length, (i) {
-      return LocationModel.fromMap(maps[i]);
-    });
+    List<LocationModel> location =
+    maps.map((map) => LocationModel.fromMap(map)).toList();
+
+    debugPrint('Raw data from Location database:');
+    for (var map in maps) {
+      debugPrint('$map');
+    }
+
+    return location;
   }
 
-  // Get unposted location records
-  Future<List<LocationModel>> getUnPostedLocations() async {
-    final db = await dbHelper.db;
-    final List<Map<String, dynamic>> maps = await db.query(
+  Future<void> fetchAndSaveLocation() async {
+    debugPrint('$locationApi$emp_id');
+    final response = await http.get(Uri.parse('$locationApi$emp_id'));
+
+    if (response.statusCode == 200) {
+      List<dynamic> data = jsonDecode(response.body);
+      var dbClient = await dbHelper.db;
+
+      for (var item in data) {
+        item['posted'] = 1;
+        LocationModel model = LocationModel.fromMap(Map<String, dynamic>.from(item));
+        await dbClient.insert(locationTableName, model.toMap());
+      }
+    } else {
+      throw Exception('Failed to fetch location data: ${response.statusCode}');
+    }
+  }
+
+  Future<List<LocationModel>> getUnPostedLocation() async {
+    var dbClient = await dbHelper.db;
+    List<Map<String, dynamic>> maps = await dbClient.query(
       locationTableName,
       where: 'posted = ?',
       whereArgs: [0],
     );
 
-    return List.generate(maps.length, (i) {
-      return LocationModel.fromMap(maps[i]);
-    });
+    return maps.map((map) => LocationModel.fromMap(map)).toList();
   }
 
-  // Add location record
-  Future<int> addLocation(LocationModel location) async {
-    final db = await dbHelper.db;
-    location.posted = 0;
-    return await db.insert(locationTableName, location.toMap());
-  }
-
-  // Update location record
-  Future<int> updateLocation(LocationModel location) async {
-    final db = await dbHelper.db;
-    return await db.update(
-      locationTableName,
-      location.toMap(),
-      where: 'location_id = ?',
-      whereArgs: [location.location_id],
-    );
-  }
-
-  // Mark as posted
-  Future<void> markAsPosted(String id) async {
-    final db = await dbHelper.db;
-    await db.update(
-      locationTableName,
-      {'posted': 1},
-      where: 'location_id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  // Post to API with GPX file
-  Future<bool> postToAPI(LocationModel location, Uint8List gpxBytes) async {
+  Future<void> postDataFromDatabaseToAPI() async {
     try {
+      var unPostedShops = await getUnPostedLocation();
+
+      if (await isNetworkAvailable()) {
+        for (var shop in unPostedShops) {
+          try {
+            await postShopToAPI(shop, shop.body!);
+            shop.posted = 1;
+            await update(shop);
+            debugPrint('Shop with id ${shop.location_id} posted and updated in local database.');
+          } catch (e) {
+            debugPrint('Failed to post shop with id ${shop.location_id}: $e');
+          }
+        }
+      } else {
+        debugPrint('Network not available. Unposted shops will remain local.');
+      }
+    } catch (e) {
+      debugPrint('Error fetching unposted shops: $e');
+    }
+  }
+
+  Future<void> postShopToAPI(LocationModel shop, Uint8List imageBytes) async {
+    try {
+      debugPrint('Updated Shop Post API: $locationApi');
+
+      var shopData = shop.toMap();
+
       var request = http.MultipartRequest('POST', Uri.parse(locationApi));
 
+      request.headers['Content-Type'] = 'multipart/form-data';
       request.headers['Accept'] = 'application/json';
 
-      // Add fields
-      request.fields['location_id'] = location.location_id.toString();
-      request.fields['emp_id'] = location.emp_id ?? '';
-      request.fields['file_name'] = location.file_name ?? '';
-      request.fields['booker_name'] = location.booker_name?.toString() ?? '';
-      request.fields['total_distance'] = location.total_distance?.toString() ?? '0';
-      request.fields['location_date'] = location.location_date != null
-          ? DateFormat('dd-MMM-yyyy').format(location.location_date!)
-          : DateFormat('dd-MMM-yyyy').format(DateTime.now());
-      request.fields['location_time'] = location.location_time != null
-          ? DateFormat('HH:mm:ss').format(location.location_time!)
-          : DateFormat('HH:mm:ss').format(DateTime.now());
+      request.fields.addAll(
+        shopData.map((key, value) => MapEntry(key, value.toString())),
+      );
 
-      // Add GPX file
-      if (gpxBytes.isNotEmpty) {
+      if (imageBytes.isNotEmpty) {
         request.files.add(
           http.MultipartFile.fromBytes(
             'body',
-            gpxBytes,
-            filename: location.file_name ?? 'track.gpx',
+            imageBytes,
             contentType: MediaType('application', 'gpx+xml'),
           ),
         );
       }
 
-      final response = await request.send().timeout(const Duration(seconds: 30));
-      final responseBody = await response.stream.bytesToString();
+      final response = await request.send();
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('✅ Location posted: ${location.location_id}');
-        await markAsPosted(location.location_id!);
-        return true;
+        debugPrint('Shop data posted successfully: ${shop.toMap()}');
+        await delete(shop.location_id!);
+        debugPrint('location_id with id ${shop.location_id} deleted from local database.');
       } else {
-        debugPrint('❌ API error: ${response.statusCode} - $responseBody');
-        return false;
+        final responseBody = await response.stream.bytesToString();
+        throw Exception('Server error: ${response.statusCode}, $responseBody');
       }
     } catch (e) {
-      debugPrint('❌ Network error: $e');
-      return false;
+      debugPrint('Error posting shop data: $e');
+      throw Exception('Failed to post data: $e');
     }
   }
 
-  // Sync all unposted records
-  Future<void> syncUnposted() async {
-    if (!await isNetworkAvailable()) {
-      debugPrint('📴 No internet connection');
-      return;
-    }
+  Future<int> add(LocationModel locationModel) async {
+    var dbClient = await dbHelper.db;
+    return await dbClient.insert(locationTableName, locationModel.toMap());
+  }
 
-    final unposted = await getUnPostedLocations();
-    if (unposted.isEmpty) {
-      debugPrint('📭 No unposted location records');
-      return;
-    }
+  Future<int> update(LocationModel locationModel) async {
+    var dbClient = await dbHelper.db;
+    return await dbClient.update(
+      locationTableName,
+      locationModel.toMap(),
+      where: 'location_id = ?',
+      whereArgs: [locationModel.location_id],
+    );
+  }
 
-    debugPrint('🔄 Syncing ${unposted.length} location records');
-    for (var location in unposted) {
-      if (location.body != null) {
-        await postToAPI(location, location.body!);
-        await Future.delayed(const Duration(milliseconds: 500));
+  Future<int> delete(String id) async {
+    var dbClient = await dbHelper.db;
+    return await dbClient.delete(
+      locationTableName,
+      where: 'location_id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> serialNumberGeneratorApi() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      final response = await http.get(
+        Uri.parse('$locationApi$emp_id'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        int? maxSerial;
+        if (data is List && data.isNotEmpty) {
+          maxSerial = data
+              .map((e) => int.tryParse(
+              e['max(location_id)']?.toString().split('-').last ?? '0') ?? 0)
+              .reduce((a, b) => a > b ? a : b);
+        } else if (data is Map) {
+          maxSerial = int.tryParse(
+              data['max(location_id)']?.toString().split('-').last ?? '0');
+        }
+
+        if (maxSerial != null && maxSerial > (locationHighestSerial ?? 0)) {
+          locationHighestSerial = maxSerial + 1;
+        } else {
+          locationHighestSerial = (locationHighestSerial ?? 0) + 1;
+        }
+      } else {
+        locationHighestSerial = (locationHighestSerial ?? 0) + 1;
       }
+
+      await prefs.reload();
+      await prefs.setInt('locationHighestSerial', locationHighestSerial!);
+      debugPrint('Location serial updated: $locationHighestSerial');
+    } catch (e) {
+      debugPrint('Error in serialNumberGeneratorApi: $e');
+      locationHighestSerial = (locationHighestSerial ?? 0) + 1;
     }
-  }
-
-  // Generate location ID
-  Future<String> generateLocationId() async {
-    final prefs = await SharedPreferences.getInstance();
-    int counter = prefs.getInt('locationCounter') ?? 1;
-
-    final now = DateTime.now();
-    final month = DateFormat('MMM').format(now);
-
-    String id = "LOC-$emp_id-$month-${counter.toString().padLeft(3, '0')}";
-
-    await prefs.setInt('locationCounter', counter + 1);
-    return id;
   }
 }

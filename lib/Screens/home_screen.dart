@@ -1,12 +1,18 @@
+
+import 'package:auto_route/annotations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../Database/util.dart';
-import '../viewmodels/attendance_view_model.dart';
-import '../viewmodels/attendance_out_view_model.dart';
-import '../viewmodels/location_view_model.dart';
-import '../../constants.dart';
-import 'HomeScreenComponents/timer_card.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import '../ViewModels/attendance_out_view_model.dart';
+import '../ViewModels/attendance_view_model.dart';
+
+import '../ViewModels/location_view_model.dart';
+import 'HomeScreenComponents/navbar.dart';
+import 'HomeScreenComponents/profile_section.dart';
+import 'HomeScreenComponents/timer_card.dart' hide LocationViewModel;
+import 'package:lucide_icons/lucide_icons.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,150 +21,73 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  // Don't initialize here - do it in initState
-  late final AttendanceViewModel attendanceVM;
-  late final AttendanceOutViewModel attendanceOutVM;
-  late final LocationViewModel locationVM;
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  // ViewModels
+  late final attendanceViewModel = Get.put(AttendanceViewModel());
+  late final attendanceOutViewModel = Get.put(AttendanceOutViewModel());
 
-  String employeeName = '';
-  String employeeId = '';
+  final LocationViewModel locationVM = Get.put(LocationViewModel());
+
+  String user_id = '';
+  String userName = '';
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ Initialize ViewModels FIRST before any other operations
-    _initializeViewModels();
 
-    // Then load employee data
-    _loadEmployeeData();
-  }
+    _retrieveSavedValues();
 
-  // ✅ Separate method to initialize ViewModels
-  void _initializeViewModels() {
-    // Check if already registered to avoid duplicates
-    if (!Get.isRegistered<AttendanceViewModel>()) {
-      attendanceVM = Get.put(AttendanceViewModel(), permanent: true);
-    } else {
-      attendanceVM = Get.find<AttendanceViewModel>();
-    }
+    attendanceViewModel.fetchAllAttendance(); // → Attendance IN
+    attendanceOutViewModel.fetchAllAttendanceOut(); // (optional OUT)
 
-    if (!Get.isRegistered<AttendanceOutViewModel>()) {
-      attendanceOutVM = Get.put(AttendanceOutViewModel(), permanent: true);
-    } else {
-      attendanceOutVM = Get.find<AttendanceOutViewModel>();
-    }
-
-    if (!Get.isRegistered<LocationViewModel>()) {
-      locationVM = Get.put(LocationViewModel(), permanent: true);
-    } else {
-      locationVM = Get.find<LocationViewModel>();
-    }
-  }
-
-  Future<void> _loadEmployeeData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      employeeName = prefs.getString(prefUserName) ?? '';
-      employeeId = prefs.getString(prefUserId) ?? '';
-    });
-  }
-
-  // 🎯 Clock In - Just calls ViewModel
-  Future<void> _handleClockIn() async {
-    await attendanceVM.clockIn();
-  }
-
-  // 🎯 Clock Out - Just calls ViewModel
-  Future<void> _handleClockOut() async {
-    await attendanceVM.clockOut();
-  }
-
-  // 🎯 Manual Location Save
-  Future<void> _handleSaveLocation() async {
-    await locationVM.saveLocationWithGPX();
-  }
-
-  // 🎯 Manual Sync
-  Future<void> _handleSync() async {
-    if (!await isNetworkAvailable()) {
-      Get.snackbar(
-        'No Internet',
-        'Please check your connection',
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    Get.dialog(
-      const Center(child: CircularProgressIndicator()),
-      barrierDismissible: false,
+    FlutterForegroundTask.startService(
+      notificationTitle: 'Clock Running',
+      notificationText: 'Tracking time and location...',
+      callback: startCallback,
     );
+  }
 
-    try {
-      await attendanceVM.syncUnposted();
-      await attendanceOutVM.syncUnposted();
-      await locationVM.syncUnposted();
+  Future<void> _retrieveSavedValues() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
 
-      Get.back();
-
-      Get.snackbar(
-        'Sync Complete',
-        'All pending data synced',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.back();
-      Get.snackbar(
-        'Sync Failed',
-        e.toString(),
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+    setState(() {
+      user_id = prefs.getString('userId') ?? '';
+      userName = prefs.getString('userName') ?? '';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async => false,
-      child: Scaffold(
-        backgroundColor: Colors.blueGrey.shade50,
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Header
-                _buildHeader(),
+      child: SafeArea(
+        child: Scaffold(
+          backgroundColor: Colors.blueGrey.shade50,
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              // Responsive horizontal padding
+              final horizontalPadding =
+              constraints.maxWidth < 400 ? 12.0 : 20.0;
+              final spacingBetweenRows =
+              constraints.maxWidth < 400 ? 12.0 : 15.0;
 
-                const SizedBox(height: 20),
-
-                // Timer Card with Clock In/Out
-                TimerCard(
-                  onClockIn: _handleClockIn,
-                  onClockOut: _handleClockOut,
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding:
+                      EdgeInsets.symmetric(horizontal: horizontalPadding),
+                      child: TimerCard(),
+                    ),
+                  ],
                 ),
-
-                const SizedBox(height: 20),
-
-                // Quick Actions
-                _buildQuickActions(),
-
-                const SizedBox(height: 20),
-
-                // Sync Button
-                _buildSyncButton(),
-
-                const SizedBox(height: 20),
-
-                // Footer
-                _buildFooter(),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -167,176 +96,101 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.white, Colors.blueGrey.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Colors.blueGrey.shade500,
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: Colors.blueGrey,
-            child: Text(
-              employeeName.isNotEmpty ? employeeName[0].toUpperCase() : 'E',
-              style: const TextStyle(
-                fontSize: 24,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+          Positioned(
+            top: -100,
+            right: -50,
+            child: Transform.rotate(
+              angle: -0.2,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(80),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.blueGrey.withOpacity(0.4),
+                      Colors.blueGrey.withOpacity(0.1),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome back,',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                Text(
-                  employeeName,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'ID: $employeeId',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.blueGrey.shade600,
-                  ),
-                ),
-              ],
-            ),
+          Column(
+            children: [
+              Navbar(),
+              const SizedBox(height: 20),
+              const ProfileSection(),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickActions() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Quick Actions',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildActionButton(
-                  icon: Icons.location_on,
-                  label: 'Save Location',
-                  color: Colors.purple,
-                  onTap: _handleSaveLocation,
-                ),
-                _buildActionButton(
-                  icon: Icons.refresh,
-                  label: 'Refresh',
-                  color: Colors.orange,
-                  onTap: () {
-                    attendanceVM.fetchAllAttendance();
-                    attendanceOutVM.fetchAllAttendanceOut();
-                    locationVM.fetchAllLocations();
-                    Get.snackbar(
-                      'Refreshed',
-                      'Data refreshed',
-                      backgroundColor: Colors.blue,
-                      colorText: Colors.white,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _buildFooter() {
+  //   return Column(
+  //     children: [
+  //       Text(
+  //         "$version",
+  //         style: const TextStyle(
+  //           // fontSize: fontSize - 1,
+  //           color: Colors.black54,
+  //           fontWeight: FontWeight.w500,
+  //           fontStyle: FontStyle.italic,
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
+  void _showClockInRequiredDialog() {
+    Get.defaultDialog(
+      title: "Clock In Required",
+      titleStyle:
+      const TextStyle(fontWeight: FontWeight.w600, color: Colors.blueGrey),
+      middleText: "Please start your work timer first.",
+      middleTextStyle: TextStyle(color: Colors.blueGrey.shade600),
+      textConfirm: "OK",
+      confirmTextColor: Colors.white,
+      buttonColor: Colors.blueGrey,
+      radius: 12,
+      onConfirm: Get.back,
     );
   }
+}
 
-  Widget _buildSyncButton() {
-    return ElevatedButton.icon(
-      onPressed: _handleSync,
-      icon: const Icon(Icons.sync),
-      label: const Text('Sync All Data'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blueGrey,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
+// Foreground task handler
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(MyTaskHandler());
+}
 
-  Widget _buildFooter() {
-    return Text(
-      'Employee ID: $employeeId | v$appVersion',
-      style: TextStyle(
-        color: Colors.grey.shade600,
-        fontSize: 12,
-      ),
-    );
-  }
+class MyTaskHandler extends TaskHandler {
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
+
+  @override
+  Future<void> onRepeatEvent(DateTime timestamp) async {}
+
+  @override
+  Future<void> onDestroy(DateTime timestamp, bool restart) async {}
 }

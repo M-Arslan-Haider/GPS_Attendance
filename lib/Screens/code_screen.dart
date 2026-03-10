@@ -1,4 +1,3 @@
-//
 // import 'dart:async';
 // import 'dart:convert';
 // import 'dart:io';
@@ -6,14 +5,8 @@
 // import 'package:flutter/material.dart';
 // import 'package:get/get.dart';
 // import 'package:http/http.dart' as http;
-// import 'package:order_booking_app/Databases/util.dart';
-// import 'package:order_booking_app/Screens/PermissionScreens/camera_screen.dart';
-// import 'package:order_booking_app/ViewModels/login_view_model.dart';
-// import 'package:order_booking_app/constants.dart';
-// import 'package:order_booking_app/widgets/color.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
-// import '../Services/FirebaseServices/firebase_remote_config.dart';
-// import '../widgets/bookit_header.dart';
+// import '../../constants.dart';
 //
 // class CodeScreen extends StatefulWidget {
 //   const CodeScreen({super.key});
@@ -29,18 +22,12 @@
 //   late Animation<Offset> _slideAnimation;
 //
 //   final _formKey = GlobalKey<FormState>();
-//   final LoginViewModel loginViewModel = Get.put(LoginViewModel());
-//
 //   bool isLoading = false;
 //   bool isButtonDisabled = false;
-//   bool isOffline = false;
-//
-//   // // Theme Colors
-//   // final Color primaryOrange = const Color(0xFFF59E0B);
-//   // final Color darkText = const Color(0xFF1F2937);
-//   // final Color bgColor = const Color(0xFFFDFCFB);
+//   String? errorMessage;
 //
 //   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+//   bool isOffline = false;
 //
 //   @override
 //   void initState() {
@@ -63,23 +50,20 @@
 //
 //     _animationController.forward();
 //
-//     // Listen to internet connectivity changes (from 2nd screen)
+//     _loadSavedCompanyCode();
+//
 //     connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) async {
 //       final result = results.isNotEmpty ? results.first : ConnectivityResult.none;
-//
-//       if (result == ConnectivityResult.none) {
-//         setState(() => isOffline = true);
-//         _showCenteredSnackBar('No internet connection.', isError: true);
-//       } else {
-//         bool hasNet = await _hasInternet(showSnack: false);
-//         if (!hasNet) {
-//           _showCenteredSnackBar('Internet is slow or unstable.', isError: true);
-//         } else if (isOffline) {
-//           setState(() => isOffline = false);
-//           _showCenteredSnackBar('Back online! You can continue.');
-//         }
-//       }
+//       setState(() => isOffline = result == ConnectivityResult.none);
 //     });
+//   }
+//
+//   Future<void> _loadSavedCompanyCode() async {
+//     final prefs = await SharedPreferences.getInstance();
+//     final savedCode = prefs.getString(prefCompanyCode);
+//     if (savedCode != null && savedCode.isNotEmpty) {
+//       companyCodeController.text = savedCode;
+//     }
 //   }
 //
 //   @override
@@ -90,108 +74,39 @@
 //     super.dispose();
 //   }
 //
-//   /// 🔹 Shows custom centered snackbar (from 2nd screen)
-//   // void _showCenteredSnackBar(String message, {bool isError = false}) {
-//   //   final snackBar = SnackBar(
-//   //     content: Center(
-//   //       child: Text(
-//   //         message,
-//   //         style: const TextStyle(fontSize: 16),
-//   //         textAlign: TextAlign.center,
-//   //       ),
-//   //     ),
-//   //     backgroundColor: isError ? Colors.red : Colors.green,
-//   //     behavior: SnackBarBehavior.floating,
-//   //     shape: RoundedRectangleBorder(
-//   //       borderRadius: BorderRadius.circular(10),
-//   //     ),
-//   //     margin: EdgeInsets.only(
-//   //       bottom: MediaQuery.of(context).size.height * 0.4,
-//   //       left: 20,
-//   //       right: 20,
-//   //     ),
-//   //   );
-//   //
-//   //   ScaffoldMessenger.of(context).showSnackBar(snackBar);
-//   // }
-//
-//   /// 🔹 Shows custom centered snackbar (from 2nd screen)
-//   void _showCenteredSnackBar(String message, {bool isError = false}) {
-//     final snackBar = SnackBar(
-//       content: Center(
-//         child: Text(
-//           message,
-//           style: const TextStyle(fontSize: 16),
-//           textAlign: TextAlign.center,
-//         ),
-//       ),
-//       backgroundColor: Colors.blueGrey, // Changed background color to blue
-//       behavior: SnackBarBehavior.floating,
-//       shape: RoundedRectangleBorder(
-//         borderRadius: BorderRadius.circular(10),
-//       ),
-//       margin: const EdgeInsets.only(
-//         bottom: 20, // Changed to show at bottom
-//         left: 20,
-//         right: 20,
-//       ),
-//     );
-//
-//     ScaffoldMessenger.of(context).showSnackBar(snackBar);
-//   }
-//
-//   /// 🔹 Check actual internet access — not just WiFi/mobile signal (from 2nd screen)
-//   Future<bool> _hasInternet({bool showSnack = true}) async {
-//     var connectivityResult = await Connectivity().checkConnectivity();
-//
-//     // No connection at all
-//     if (connectivityResult == ConnectivityResult.none) {
-//       if (showSnack) {
-//         _showCenteredSnackBar('No internet connection detected.', isError: true);
-//       }
-//       return false;
-//     }
-//
-//     // Check if actual connection works (ping)
+//   Future<bool> _hasInternet() async {
 //     try {
 //       final result = await InternetAddress.lookup('google.com')
 //           .timeout(const Duration(seconds: 5));
-//
-//       if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
-//         return true; // Internet is working
-//       } else {
-//         if (showSnack) {
-//           _showCenteredSnackBar('Internet seems unavailable or very slow.', isError: true);
-//         }
-//         return false;
-//       }
-//     } on SocketException {
-//       if (showSnack) {
-//         _showCenteredSnackBar('Internet not reachable. Please check your connection.', isError: true);
-//       }
-//       return false;
-//     } on TimeoutException {
-//       if (showSnack) {
-//         _showCenteredSnackBar('Internet connection is very slow. Please try again.', isError: true);
-//       }
-//       return false;
-//     } catch (e) {
-//       if (showSnack) {
-//         _showCenteredSnackBar('Error checking internet: $e', isError: true);
-//       }
+//       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+//     } catch (_) {
 //       return false;
 //     }
 //   }
 //
-//   /// 🔹 Save company details logic (from 2nd screen with enhancements)
-//   Future<void> _saveCompanyDetails(String companyCode) async {
-//     _showCenteredSnackBar('Please wait...');
+//   void _showSnackBar(String message, {bool isError = false}) {
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       SnackBar(
+//         content: Text(message),
+//         backgroundColor: isError ? Colors.red.shade400 : Colors.green,
+//         behavior: SnackBarBehavior.floating,
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+//         margin: const EdgeInsets.all(20),
+//       ),
+//     );
+//   }
+//
+//   Future<void> _validateCompanyCode() async {
+//     if (!_formKey.currentState!.validate()) return;
+//
 //     setState(() {
 //       isLoading = true;
 //       isButtonDisabled = true;
+//       errorMessage = null;
 //     });
 //
 //     if (!await _hasInternet()) {
+//       _showSnackBar('No internet connection. Please try again.', isError: true);
 //       setState(() {
 //         isLoading = false;
 //         isButtonDisabled = false;
@@ -200,83 +115,73 @@
 //     }
 //
 //     try {
-//       final prefs = await SharedPreferences.getInstance();
-//       await prefs.reload();
-//       final isAuthenticated = prefs.getBool('isAuthenticated') ?? false;
+//       final companyCode = companyCodeController.text.trim().toUpperCase();
 //
-//       await Config.fetchLatestConfig();
+//       if (companyCode.isEmpty) {
+//         throw Exception('Please enter a valid company code');
+//       }
+//
+//       debugPrint('📡 Fetching companies from: $companyApiEndpoint');
 //
 //       final response = await http
-//           .get(Uri.parse(Config.getApiUrlCompaniesCodes))
+//           .get(Uri.parse(companyApiEndpoint))
 //           .timeout(const Duration(seconds: 30));
 //
 //       if (response.statusCode != 200) {
-//         _showCenteredSnackBar('Failed to fetch company details', isError: true);
-//         setState(() {
-//           isLoading = false;
-//           isButtonDisabled = false;
-//         });
-//         return;
+//         throw Exception('Failed to fetch company data');
 //       }
 //
-//       final data = json.decode(response.body);
-//       final items = data['items'] as List;
-//       final company = items.firstWhere(
-//             (item) => item['company_code'] == companyCode,
+//       final Map<String, dynamic> data = json.decode(response.body);
+//       List<dynamic> companies = data['items'] ?? [];
+//
+//       if (companies.isEmpty) {
+//         throw Exception('No companies found');
+//       }
+//
+//       // Find matching company
+//       final company = companies.firstWhere(
+//             (c) {
+//           final code = c['company_code']?.toString().toUpperCase() ?? '';
+//           return code == companyCode;
+//         },
 //         orElse: () => null,
 //       );
 //
 //       if (company == null) {
-//         _showCenteredSnackBar('Company code not found', isError: true);
+//         throw Exception('Company code not found');
+//       }
+//
+//       final prefs = await SharedPreferences.getInstance();
+//
+//       String companyName = company['company_name'] ?? 'Unknown';
+//       String workspaceName = company['workspace_name'] ?? 'production';
+//
+//       await prefs.setString(prefCompanyCode, companyCode);
+//       await prefs.setString(prefCompanyName, companyName);
+//       await prefs.setString(prefWorkspaceName, workspaceName);
+//
+//       _showSnackBar('Company verified successfully!');
+//
+//       await Future.delayed(const Duration(milliseconds: 800));
+//
+//       if (mounted) {
+//         // Navigate to permissions screen
+//         Get.toNamed('/permissions');
+//       }
+//
+//     } catch (e) {
+//       String errorMsg = e.toString().replaceAll('Exception: ', '');
+//       setState(() {
+//         errorMessage = errorMsg;
+//       });
+//       _showSnackBar(errorMsg, isError: true);
+//     } finally {
+//       if (mounted) {
 //         setState(() {
 //           isLoading = false;
 //           isButtonDisabled = false;
 //         });
-//         return;
 //       }
-//
-//       await prefs.setString('company_name', company['company_name']);
-//       await prefs.setString('workspace_name', company['workspace_name']);
-//       await prefs.setString('company_code', companyCode);
-//       erpWorkSpace = await prefs.getString('workspace_name') ?? '';
-//
-//       if (!isAuthenticated) {
-//         try {
-//           _showCenteredSnackBar('Setting up your account...');
-//           await Config.fetchLatestConfig();
-//           await Config.getApiUrlERPCompanyName;
-//           companyName = await prefs.getString('company_name') ?? '';
-//           debugPrint("Company Name: ${Config.getApiUrlERPCompanyName}");
-//           await loginViewModel.checkInternetBeforeNavigation();
-//         } catch (e) {
-//           debugPrint("Authentication error: $e");
-//           _showCenteredSnackBar('Setup failed: ${e.toString()}', isError: true);
-//           setState(() {
-//             isLoading = false;
-//             isButtonDisabled = false;
-//           });
-//           return;
-//         }
-//       }
-//
-//       _showCenteredSnackBar('Setup complete!');
-//       WidgetsBinding.instance.addPostFrameCallback((_) {
-//         Get.offAll(() => const CameraScreen());
-//       });
-//     } on SocketException {
-//       _showCenteredSnackBar('No internet. Please connect and try again.', isError: true);
-//     } on TimeoutException {
-//       _showCenteredSnackBar('Request timed out. Please try again.', isError: true);
-//     } on http.ClientException {
-//       _showCenteredSnackBar('Connection failed. Check your internet and try again.', isError: true);
-//     } catch (e) {
-//       debugPrint('Error in _saveCompanyDetails: $e');
-//       _showCenteredSnackBar('Something went wrong. Please try again later.', isError: true);
-//     } finally {
-//       setState(() {
-//         isLoading = false;
-//         isButtonDisabled = false;
-//       });
 //     }
 //   }
 //
@@ -288,12 +193,12 @@
 //         onTap: () => FocusScope.of(context).unfocus(),
 //         child: Stack(
 //           children: [
-//             // Elegant background circles (from 1st screen)
+//             // Background design
 //             Positioned(
 //               top: -100,
 //               right: -50,
 //               child: Transform.rotate(
-//                 angle: -0.2, // Tilts the shape for that "pointed" look
+//                 angle: -0.2,
 //                 child: Container(
 //                   width: 300,
 //                   height: 300,
@@ -304,15 +209,11 @@
 //                         Colors.blueGrey.withOpacity(0.4),
 //                         Colors.blueGrey.withOpacity(0.1),
 //                       ],
-//                       begin: Alignment.topLeft,
-//                       end: Alignment.bottomRight,
 //                     ),
 //                   ),
 //                 ),
 //               ),
 //             ),
-//
-//             // Secondary accent circle
 //             Positioned(
 //               top: 50,
 //               left: -30,
@@ -326,7 +227,6 @@
 //               ),
 //             ),
 //
-//
 //             SafeArea(
 //               child: Center(
 //                 child: SingleChildScrollView(
@@ -338,11 +238,16 @@
 //                       child: Column(
 //                         mainAxisAlignment: MainAxisAlignment.center,
 //                         children: [
-//                           _buildHeader(),
+//                           const Text(
+//                             'BOOK IT',
+//                             style: TextStyle(
+//                               fontSize: 32,
+//                               fontWeight: FontWeight.bold,
+//                               color: Color(0xFF1F2937),
+//                             ),
+//                           ),
 //                           const SizedBox(height: 40),
 //                           _buildMainCard(),
-//                           const SizedBox(height: 30),
-//                           _buildFooter(),
 //                         ],
 //                       ),
 //                     ),
@@ -350,16 +255,31 @@
 //                 ),
 //               ),
 //             ),
+//
+//             if (isOffline)
+//               Positioned(
+//                 top: 10,
+//                 left: 0,
+//                 right: 0,
+//                 child: Container(
+//                   padding: const EdgeInsets.symmetric(vertical: 8),
+//                   color: Colors.amber.shade700,
+//                   child: const Row(
+//                     mainAxisAlignment: MainAxisAlignment.center,
+//                     children: [
+//                       Icon(Icons.wifi_off, color: Colors.white, size: 18),
+//                       SizedBox(width: 8),
+//                       Text(
+//                         'Offline Mode',
+//                         style: TextStyle(color: Colors.white),
+//                       ),
+//                     ],
+//                   ),
+//                 ),
+//               ),
 //           ],
 //         ),
 //       ),
-//     );
-//   }
-//   Widget _buildHeader() {
-//     return Column(
-//       children: [
-//         BookITHeader(),
-//       ],
 //     );
 //   }
 //
@@ -385,20 +305,26 @@
 //           children: [
 //             Text(
 //               'Company Code',
-//               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColor.darkText),
+//               style: TextStyle(
+//                 fontSize: 22,
+//                 fontWeight: FontWeight.bold,
+//                 color: darkText,
+//               ),
 //             ),
 //             const SizedBox(height: 10),
 //             Text(
-//               'Enter your unique company code to continue this application .',
-//               style: TextStyle(fontSize: 14, color: AppColor.subText, height: 1.4),
+//               'Enter your unique company code to continue.',
+//               style: TextStyle(
+//                 fontSize: 14,
+//                 color: subText,
+//               ),
 //             ),
 //             const SizedBox(height: 30),
 //             TextFormField(
 //               controller: companyCodeController,
 //               textCapitalization: TextCapitalization.characters,
-//               style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0),
 //               decoration: InputDecoration(
-//                 hintText: 'Enter your company code',
+//                 hintText: 'e.g., PRODUCTION',
 //                 filled: true,
 //                 fillColor: const Color(0xFFF9FAFB),
 //                 border: OutlineInputBorder(
@@ -409,6 +335,8 @@
 //                   borderRadius: BorderRadius.circular(15),
 //                   borderSide: BorderSide(color: darkText, width: 2),
 //                 ),
+//                 errorText: errorMessage,
+//                 prefixIcon: const Icon(Icons.business_center, color: Colors.blueGrey),
 //               ),
 //               validator: (value) {
 //                 if (value == null || value.isEmpty) {
@@ -422,22 +350,17 @@
 //               width: double.infinity,
 //               height: 58,
 //               child: ElevatedButton(
-//                 onPressed: isButtonDisabled
-//                     ? null
-//                     : () {
-//                   if (_formKey.currentState!.validate()) {
-//                     _saveCompanyDetails(companyCodeController.text.trim());
-//                   }
-//                 },
+//                 onPressed: (isButtonDisabled || isOffline) ? null : _validateCompanyCode,
 //                 style: ElevatedButton.styleFrom(
-//                   backgroundColor: Colors.blueGrey,
+//                   backgroundColor: isOffline ? Colors.grey : darkText,
 //                   foregroundColor: Colors.white,
-//                   elevation: 0,
-//                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+//                   shape: RoundedRectangleBorder(
+//                       borderRadius: BorderRadius.circular(15)
+//                   ),
 //                 ),
 //                 child: isLoading
-//                     ? const Text('Please wait...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))
-//                     : const Text('Continue', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+//                     ? const CircularProgressIndicator(color: Colors.white)
+//                     : Text(isOffline ? 'Offline' : 'Continue'),
 //               ),
 //             ),
 //           ],
@@ -445,48 +368,8 @@
 //       ),
 //     );
 //   }
-//
-//   Widget _buildFooter() {
-//     return Column(
-//       children: [
-//         TextButton(
-//           onPressed: () {
-//             ScaffoldMessenger.of(context).showSnackBar(
-//               SnackBar(
-//                 content: const Text('Please contact admin to reset your access code'),
-//                 behavior: SnackBarBehavior.floating,
-//                 duration: const Duration(seconds: 3),
-//               ),
-//             );
-//           },
-//           child: Text(
-//             'Forget your access code?',
-//             style: TextStyle(
-//               color: AppColor.subText,
-//               fontWeight: FontWeight.w500,
-//             ),
-//           ),
-//         ),
-//         const SizedBox(height: 20),
-//         Row(
-//           mainAxisAlignment: MainAxisAlignment.center,
-//           children: [
-//             Icon(Icons.lock_outline, size: 14, color: Colors.grey[400]),
-//             const SizedBox(width: 5),
-//             Text(
-//               'SECURED END-TO-END',
-//               style: TextStyle(fontSize: 10, color: AppColor.subText, letterSpacing: 1),
-//             ),
-//           ],
-//         ),
-//       ],
-//     );
-//   }
 // }
-//
 
-
-///remove firebase
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -494,13 +377,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-import 'package:order_booking_app/Databases/util.dart';
-import 'package:order_booking_app/Screens/PermissionScreens/camera_screen.dart';
-import 'package:order_booking_app/ViewModels/login_view_model.dart';
-import 'package:order_booking_app/constants.dart';
-import 'package:order_booking_app/widgets/color.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/bookit_header.dart';
+import '../../constants.dart';
 
 class CodeScreen extends StatefulWidget {
   const CodeScreen({super.key});
@@ -516,16 +394,24 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
   late Animation<Offset> _slideAnimation;
 
   final _formKey = GlobalKey<FormState>();
-  final LoginViewModel loginViewModel = Get.put(LoginViewModel());
-
   bool isLoading = false;
   bool isButtonDisabled = false;
-  bool isOffline = false;
-
-  // API URL for company codes - DIRECT API URL instead of Firebase
-  final String companyApiUrl = "https://cloud.metaxperts.net:8443/erp/beauty_pro_solutions/registeredcompanies/get/";
+  String? errorMessage;
 
   StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
+  bool isOffline = false;
+
+  // ── White & Blue Theme ─────────────────────────────────────────────────────
+  static const Color _bg             = Color(0xFFF0F4FF);
+  static const Color _surface        = Color(0xFFFFFFFF);
+  static const Color _accentBlue     = Color(0xFF1A5CFF);
+  static const Color _accentBlueDark = Color(0xFF0F3DBF);
+  static const Color _accentLight    = Color(0xFFE6EDFF);
+  static const Color _textPrimary    = Color(0xFF0A1931);
+  static const Color _textSecondary  = Color(0xFF6B7FA8);
+  static const Color _border         = Color(0xFFD0DBEE);
+  static const Color _errorRed       = Color(0xFFD93025);
+  // ──────────────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -547,24 +433,20 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
     ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
 
     _animationController.forward();
+    _loadSavedCompanyCode();
 
-    // Listen to internet connectivity changes
     connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) async {
       final result = results.isNotEmpty ? results.first : ConnectivityResult.none;
-
-      if (result == ConnectivityResult.none) {
-        setState(() => isOffline = true);
-        _showCenteredSnackBar('No internet connection.', isError: true);
-      } else {
-        bool hasNet = await _hasInternet(showSnack: false);
-        if (!hasNet) {
-          _showCenteredSnackBar('Internet is slow or unstable.', isError: true);
-        } else if (isOffline) {
-          setState(() => isOffline = false);
-          _showCenteredSnackBar('Back online! You can continue.');
-        }
-      }
+      setState(() => isOffline = result == ConnectivityResult.none);
     });
+  }
+
+  Future<void> _loadSavedCompanyCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedCode = prefs.getString(prefCompanyCode);
+    if (savedCode != null && savedCode.isNotEmpty) {
+      companyCodeController.text = savedCode;
+    }
   }
 
   @override
@@ -575,81 +457,39 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  /// Shows custom centered snackbar
-  void _showCenteredSnackBar(String message, {bool isError = false}) {
-    final snackBar = SnackBar(
-      content: Center(
-        child: Text(
-          message,
-          style: const TextStyle(fontSize: 16),
-          textAlign: TextAlign.center,
-        ),
-      ),
-      backgroundColor: Colors.blueGrey,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
-      margin: const EdgeInsets.only(
-        bottom: 20,
-        left: 20,
-        right: 20,
-      ),
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
-  }
-
-  /// Check actual internet access
-  Future<bool> _hasInternet({bool showSnack = true}) async {
-    var connectivityResult = await Connectivity().checkConnectivity();
-
-    if (connectivityResult == ConnectivityResult.none) {
-      if (showSnack) {
-        _showCenteredSnackBar('No internet connection detected.', isError: true);
-      }
-      return false;
-    }
-
+  Future<bool> _hasInternet() async {
     try {
       final result = await InternetAddress.lookup('google.com')
           .timeout(const Duration(seconds: 5));
-
-      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
-        return true;
-      } else {
-        if (showSnack) {
-          _showCenteredSnackBar('Internet seems unavailable or very slow.', isError: true);
-        }
-        return false;
-      }
-    } on SocketException {
-      if (showSnack) {
-        _showCenteredSnackBar('Internet not reachable. Please check your connection.', isError: true);
-      }
-      return false;
-    } on TimeoutException {
-      if (showSnack) {
-        _showCenteredSnackBar('Internet connection is very slow. Please try again.', isError: true);
-      }
-      return false;
-    } catch (e) {
-      if (showSnack) {
-        _showCenteredSnackBar('Error checking internet: $e', isError: true);
-      }
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
       return false;
     }
   }
 
-  /// Save company details logic - DIRECT API CALL WITHOUT FIREBASE
-  Future<void> _saveCompanyDetails(String companyCode) async {
-    _showCenteredSnackBar('Please wait...');
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? _errorRed : _accentBlueDark,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(20),
+      ),
+    );
+  }
+
+  Future<void> _validateCompanyCode() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       isLoading = true;
       isButtonDisabled = true;
+      errorMessage = null;
     });
 
     if (!await _hasInternet()) {
+      _showSnackBar('No internet connection. Please try again.', isError: true);
       setState(() {
         isLoading = false;
         isButtonDisabled = false;
@@ -658,165 +498,120 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
     }
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.reload();
-      final isAuthenticated = prefs.getBool('isAuthenticated') ?? false;
+      final companyCode = companyCodeController.text.trim().toUpperCase();
 
-      // DIRECT API CALL - NO FIREBASE
+      if (companyCode.isEmpty) {
+        throw Exception('Please enter a valid company code');
+      }
+
+      debugPrint('📡 Fetching companies from: $companyApiEndpoint');
+
       final response = await http
-          .get(Uri.parse(companyApiUrl))
+          .get(Uri.parse(companyApiEndpoint))
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
-        _showCenteredSnackBar('Failed to fetch company details', isError: true);
-        setState(() {
-          isLoading = false;
-          isButtonDisabled = false;
-        });
-        return;
+        throw Exception('Failed to fetch company data');
       }
 
-      final data = json.decode(response.body);
+      final Map<String, dynamic> data = json.decode(response.body);
+      List<dynamic> companies = data['items'] ?? [];
 
-      // Handle different response structures
-      List<dynamic> items = [];
-      if (data is Map && data.containsKey('items')) {
-        items = data['items'] as List;
-      } else if (data is List) {
-        items = data;
-      } else if (data is Map && data.containsKey('data')) {
-        items = data['data'] as List;
-      } else {
-        _showCenteredSnackBar('Unexpected API response format', isError: true);
-        setState(() {
-          isLoading = false;
-          isButtonDisabled = false;
-        });
-        return;
+      if (companies.isEmpty) {
+        throw Exception('No companies found');
       }
 
-      // Find the company by code
-      final company = items.firstWhere(
-            (item) =>
-        item['company_code'] == companyCode ||
-            item['code'] == companyCode ||
-            item['companyCode'] == companyCode,
+      final company = companies.firstWhere(
+            (c) {
+          final code = c['company_code']?.toString().toUpperCase() ?? '';
+          return code == companyCode;
+        },
         orElse: () => null,
       );
 
       if (company == null) {
-        _showCenteredSnackBar('Company code not found', isError: true);
+        throw Exception('Company code not found');
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+
+      String companyName = company['company_name'] ?? 'Unknown';
+      String workspaceName = company['workspace_name'] ?? 'production';
+
+      await prefs.setString(prefCompanyCode, companyCode);
+      await prefs.setString(prefCompanyName, companyName);
+      await prefs.setString(prefWorkspaceName, workspaceName);
+
+      _showSnackBar('Company verified successfully!');
+
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      if (mounted) {
+        Get.toNamed('/permissions');
+      }
+    } catch (e) {
+      String errorMsg = e.toString().replaceAll('Exception: ', '');
+      setState(() {
+        errorMessage = errorMsg;
+      });
+      _showSnackBar(errorMsg, isError: true);
+    } finally {
+      if (mounted) {
         setState(() {
           isLoading = false;
           isButtonDisabled = false;
         });
-        return;
       }
-
-      // Extract company details with fallback keys
-      String companyName = company['company_name'] ??
-          company['name'] ??
-          company['companyName'] ??
-          'Unknown Company';
-
-      String workspaceName = company['workspace_name'] ??
-          company['workspace'] ??
-          company['workspaceName'] ??
-          'default';
-
-      await prefs.setString('company_name', companyName);
-      await prefs.setString('workspace_name', workspaceName);
-      await prefs.setString('company_code', companyCode);
-
-      // Set ERP workspace name
-      erpWorkSpace = workspaceName;
-
-      if (!isAuthenticated) {
-        try {
-          _showCenteredSnackBar('Setting up your account...');
-
-          // Set company name for further API calls
-          companyName = companyName;
-          debugPrint("Company Name: $companyName");
-
-          // Check internet before navigation
-          await loginViewModel.checkInternetBeforeNavigation();
-        } catch (e) {
-          debugPrint("Authentication error: $e");
-          _showCenteredSnackBar('Setup failed: ${e.toString()}', isError: true);
-          setState(() {
-            isLoading = false;
-            isButtonDisabled = false;
-          });
-          return;
-        }
-      }
-
-      _showCenteredSnackBar('Setup complete!');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Get.offAll(() => const CameraScreen());
-      });
-    } on SocketException {
-      _showCenteredSnackBar('No internet. Please connect and try again.', isError: true);
-    } on TimeoutException {
-      _showCenteredSnackBar('Request timed out. Please try again.', isError: true);
-    } on http.ClientException {
-      _showCenteredSnackBar('Connection failed. Check your internet and try again.', isError: true);
-    } catch (e) {
-      debugPrint('Error in _saveCompanyDetails: $e');
-      _showCenteredSnackBar('Something went wrong. Please try again later.', isError: true);
-    } finally {
-      setState(() {
-        isLoading = false;
-        isButtonDisabled = false;
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: _bg,
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: Stack(
           children: [
-            // Elegant background circles
+            // ── Decorative background blobs ──────────────────────────────
             Positioned(
-              top: -100,
-              right: -50,
-              child: Transform.rotate(
-                angle: -0.2,
-                child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(80),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.blueGrey.withOpacity(0.4),
-                        Colors.blueGrey.withOpacity(0.1),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+              top: -60,
+              right: -80,
+              child: Container(
+                width: 280,
+                height: 280,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      _accentBlue.withOpacity(0.12),
+                      _accentBlue.withOpacity(0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -80,
+              left: -60,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      _accentBlueDark.withOpacity(0.10),
+                      _accentBlueDark.withOpacity(0.0),
+                    ],
                   ),
                 ),
               ),
             ),
 
-            // Secondary accent circle
-            Positioned(
-              top: 50,
-              left: -30,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blueGrey.withOpacity(0.05),
-                ),
-              ),
+            // ── Dot grid overlay ─────────────────────────────────────────
+            Positioned.fill(
+              child: CustomPaint(painter: _DotGridPainter()),
             ),
 
             SafeArea(
@@ -830,11 +625,70 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildHeader(),
-                          const SizedBox(height: 40),
+                          // ── App icon ───────────────────────────────
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: _accentBlue,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _accentBlue.withOpacity(0.35),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.how_to_reg_rounded,
+                              color: Colors.white,
+                              size: 38,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // ── Title ──────────────────────────────────
+                          const Text(
+                            'Attendance System',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: _textPrimary,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Track. Manage. Simplify.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _textSecondary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 36),
+
                           _buildMainCard(),
-                          const SizedBox(height: 30),
-                          _buildFooter(),
+                          const SizedBox(height: 28),
+
+                          // ── Footer ─────────────────────────────────
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.lock_outline_rounded,
+                                  size: 13, color: _textSecondary.withOpacity(0.7)),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Secured & Encrypted Connection',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _textSecondary.withOpacity(0.7),
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -842,32 +696,57 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
                 ),
               ),
             ),
+
+            // ── Offline banner ────────────────────────────────────────────
+            if (isOffline)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  color: const Color(0xFFF59E0B),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'No Internet Connection',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Column(
-      children: [
-        BookITHeader(),
-      ],
-    );
-  }
-
   Widget _buildMainCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        color: _surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _border, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: darkText.withOpacity(0.09),
-            blurRadius: 20,
-            offset: const Offset(0, 15),
+            color: _accentBlue.withOpacity(0.08),
+            blurRadius: 40,
+            offset: const Offset(0, 16),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -876,61 +755,157 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Company Code',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColor.darkText),
+            // ── Card header ─────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: _accentLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.corporate_fare_rounded,
+                    color: _accentBlue,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Enter Company Code',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Provided by your administrator',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _textSecondary.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              'Enter your unique company code to continue this application.',
-              style: TextStyle(fontSize: 14, color: AppColor.subText, height: 1.4),
+
+            const SizedBox(height: 22),
+            Divider(color: _border, height: 1),
+            const SizedBox(height: 22),
+
+            // ── Input label ─────────────────────────────────────────────
+            const Text(
+              'COMPANY CODE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _textSecondary,
+                letterSpacing: 1.4,
+              ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 8),
+
+            // ── Text field ──────────────────────────────────────────────
             TextFormField(
               controller: companyCodeController,
               textCapitalization: TextCapitalization.characters,
-              style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0),
+              style: const TextStyle(
+                color: _textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                letterSpacing: 2.5,
+              ),
               decoration: InputDecoration(
-                hintText: 'Enter your company code',
+                hintText: 'Enter Code',
+                hintStyle: TextStyle(
+                  color: _textSecondary.withOpacity(0.45),
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 1,
+                  fontSize: 15,
+                ),
                 filled: true,
-                fillColor: const Color(0xFFF9FAFB),
+                fillColor: const Color(0xFFF7F9FF),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _border, width: 1.2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _border, width: 1.2),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide(color: darkText, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _accentBlue, width: 2),
                 ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _errorRed, width: 1.5),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _errorRed, width: 2),
+                ),
+                errorText: errorMessage,
+                errorStyle: const TextStyle(color: _errorRed, fontSize: 12),
+                prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter company code';
+                  return 'Please enter a company code';
                 }
                 return null;
               },
             ),
-            const SizedBox(height: 25),
+            const SizedBox(height: 22),
+
+            // ── Submit button ───────────────────────────────────────────
             SizedBox(
               width: double.infinity,
-              height: 58,
+              height: 54,
               child: ElevatedButton(
-                onPressed: isButtonDisabled
-                    ? null
-                    : () {
-                  if (_formKey.currentState!.validate()) {
-                    _saveCompanyDetails(companyCodeController.text.trim());
-                  }
-                },
+                onPressed: (isButtonDisabled || isOffline) ? null : _validateCompanyCode,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueGrey,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  backgroundColor: isOffline ? const Color(0xFFCBD5E1) : _accentBlue,
+                  foregroundColor: isOffline ? _textSecondary : Colors.white,
+                  disabledBackgroundColor: const Color(0xFFCBD5E1),
+                  elevation: isOffline ? 0 : 6,
+                  shadowColor: _accentBlue.withOpacity(0.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: isLoading
-                    ? const Text('Please wait...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))
-                    : const Text('Continue', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+                    : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      isOffline ? 'Offline' : 'Verify & Continue',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    if (!isOffline) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -938,41 +913,26 @@ class _CodeScreenState extends State<CodeScreen> with SingleTickerProviderStateM
       ),
     );
   }
+}
 
-  Widget _buildFooter() {
-    return Column(
-      children: [
-        TextButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Please contact admin to reset your access code'),
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          },
-          child: Text(
-            'Forget your access code?',
-            style: TextStyle(
-              color: AppColor.subText,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.lock_outline, size: 14, color: Colors.grey[400]),
-            const SizedBox(width: 5),
-            Text(
-              'SECURED END-TO-END',
-              style: TextStyle(fontSize: 10, color: AppColor.subText, letterSpacing: 1),
-            ),
-          ],
-        ),
-      ],
-    );
+// ── Subtle dot-grid background painter ────────────────────────────────────────
+class _DotGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF1A5CFF).withOpacity(0.055)
+      ..strokeCap = StrokeCap.round;
+
+    const spacing = 28.0;
+    const radius = 1.4;
+
+    for (double x = 0; x < size.width; x += spacing) {
+      for (double y = 0; y < size.height; y += spacing) {
+        canvas.drawCircle(Offset(x, y), radius, paint);
+      }
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

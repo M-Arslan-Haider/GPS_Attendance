@@ -1,382 +1,94 @@
-//
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:flutter/foundation.dart';
-// import 'package:get/get.dart';
-// import '../../Models/LoginModels/login_models.dart';
-// import '../../Databases/dp_helper.dart';
-// import '../../Databases/util.dart';
-// import '../../Services/ApiServices/api_service.dart';
-// import '../../Services/FirebaseServices/firebase_remote_config.dart';
-//
-// class LoginRepository extends GetxService{
-//
-//   DBHelper dbHelper = DBHelper();
-//   // Fetch a specific user by user_id and password
-//   Future<LoginModels?> getUserByCredentials(String user_id, String password) async {
-//     var dbClient = await dbHelper.db;
-//
-//     List<Map> maps = await dbClient.query(
-//         tableNameLogin,
-//         where: 'user_id = ? AND password = ?',
-//         whereArgs: [user_id, password],
-//         columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' , 'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id', 'dispatcher', 'dispatcher_id' ]
-//     );
-//
-//     if (maps.isNotEmpty) {
-//       return LoginModels.fromMap(maps.first); // Return the first matching user
-//     }
-//     return null; // No user found
-//   }
-//   Future<Map?> getUserDetailsById(String user_id) async {
-//     var dbClient = await dbHelper.db;
-//
-//     List<Map> maps = await dbClient.query(
-//       tableNameLogin,
-//       where: 'user_id = ?',
-//       whereArgs: [user_id],
-//       columns: ['user_id', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id',  'dispatcher', 'dispatcher_id'],
-//     );
-//
-//     if (maps.isNotEmpty) {
-//       return maps.first; // Return the first matching user details as a Map
-//     }
-//     return null; // No user found
-//   }
-//   Future<List<LoginModels>> getLogin() async {
-//     // Get the database client
-//     var dbClient = await dbHelper.db;
-//
-//     // Query the database
-//     List<Map> maps = await dbClient.query(
-//         tableNameLogin,
-//         columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' ,  'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id',  'dispatcher', 'dispatcher_id']
-//     );
-//
-//     // Print the raw data retrieved from the database
-//
-//       debugPrint('Raw data from database:');
-//
-//     // ignore: unused_local_variable
-//     for (var map in maps) {
-//
-//         debugPrint("$map");
-//
-//     }
-//
-//     // Convert the raw data into a list
-//     List<LoginModels> login = [];
-//     for (int i = 0; i < maps.length; i++) {
-//       login.add(LoginModels.fromMap(maps[i]));
-//     }
-//
-//     // Print the list of
-//
-//       debugPrint('Parsed LoginModels objects:');
-//
-//
-//     return login;
-//   }
-//
-//   Future<void> fetchAndSaveLogin() async {
-//     await Config.fetchLatestConfig();
-//     debugPrint( "${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.getApiUrlLogin}");
-//
-//     List<dynamic> data = await ApiService.getData(
-//         "${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.getApiUrlLogin}");
-//     // List<dynamic> data = await ApiService.getData("http://103.149.32.30:8080/ords/valor_trading/login1/get");
-//     //  List<dynamic> data = await ApiService.getData("http://103.149.32.30:8080/ords/alnoor_town/login/get/");
-//     // List<dynamic> data = await ApiService.getData(
-//     //     "https://cloud.metaxperts.net:8443/erp/test1/loginget/get/"
-//     // );
-//     var dbClient = await dbHelper.db;
-//
-//     debugPrint("Login Data: $data");
-//     // Save data to local database
-//     for (var item in data) {
-//       LoginModels model = LoginModels.fromMap(item);
-//       await dbClient.insert(tableNameLogin, model.toMap());
-//
-//       // Save data to Firebase Firestore
-//       await FirebaseFirestore.instance
-//           .collection(tableNameLogin)
-//           .doc(model.user_id?.toString()) // Convert int? to String?
-//           .set(model.toMap());
-//     }
-//   }
-//
-//   Future<int>add(LoginModels loginModels) async{
-//     var dbClient = await dbHelper.db;
-//     return await dbClient.insert(tableNameLogin,loginModels.toMap());
-//   }
-//
-//   Future<int>update(LoginModels loginModels) async{
-//     var dbClient = await dbHelper.db;
-//     return await dbClient.update(tableNameLogin,loginModels.toMap(),
-//         where: 'user_id = ?', whereArgs: [loginModels.user_id]);
-//
-//   }
-//
-//   Future<int>delete(int id) async{
-//     var dbClient = await dbHelper.db;
-//     return await dbClient.delete(tableNameLogin,
-//         where: 'user_id = ?', whereArgs: [id]);
-//   }
-//   Future<List<LoginModels>> getBookerNamesByDesignation(String designationColumn, String designationValue) async {
-//     var dbClient = await dbHelper.db;
-//
-//     // Debug: Print the query parameters
-//     debugPrint('Querying table: $tableNameLogin');
-//     debugPrint('Where: $designationColumn = $designationValue');
-//
-//     // Query the database for users with the given designation column and value
-//     List<Map> maps = await dbClient.query(
-//       tableNameLogin,
-//       where: '$designationColumn = ?',
-//       whereArgs: [designationValue],
-//       columns: ['user_id', 'password', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id',  'dispatcher', 'dispatcher_id'],
-//     );
-//
-//     // Debug: Print the fetched data
-//     debugPrint('Fetched data: $maps');
-//
-//     // Convert the raw data into a list of LoginModels
-//     List<LoginModels> bookers = [];
-//     for (var map in maps) {
-//       bookers.add(LoginModels.fromMap(map));
-//     }
-//
-//     return bookers;
-//   }
-//   Future<List<String>> getBookerNamesByRSMDesignation() async {
-//     var dbClient = await dbHelper.db;
-//
-//     final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-//       tableNameLogin,
-//       where: 'rsm_id = ?',
-//       whereArgs: [user_id],
-//     );
-//     return bookerNames.map((map) => map['user_id'] as String).toList();
-//
-//   }
-//   Future<List<String>> getBookerNamesBySMDesignation() async {
-//     var dbClient = await dbHelper.db;
-//
-//     final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-//       tableNameLogin,
-//       where: 'sm_id = ?',
-//       whereArgs: [user_id],
-//     );
-//     return bookerNames.map((map) => map['user_id'] as String).toList();
-//
-//   }
-//   Future<List<String>> getBookerNamesByNSMDesignation() async {
-//     var dbClient = await dbHelper.db;
-//
-//     final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-//       tableNameLogin,
-//       where: 'nsm_id = ?',
-//       whereArgs: [user_id],
-//     );
-//     return bookerNames.map((map) => map['user_id'] as String).toList();
-//
-//   }
-//   Future<List<String>> getBookerNamesByDISPATCHERDesignation() async {
-//     var dbClient = await dbHelper.db;
-//
-//     final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-//       tableNameLogin,
-//       where: 'dispatcher_id = ?',
-//       whereArgs: [user_id],
-//     );
-//     return bookerNames.map((map) => map['user_id'] as String).toList();
-//
-//   }
-//
-//
-// }
-
-///remove firebase
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../Models/LoginModels/login_models.dart';
-import '../../Databases/dp_helper.dart';
-import '../../Databases/util.dart';
-import '../../Services/ApiServices/api_service.dart';
-import '../../Services/FirebaseServices/firebase_remote_config.dart';
+import '../../constants.dart';
 
-class LoginRepository extends GetxService{
+class LoginRepository extends GetxService {
 
-  DBHelper dbHelper = DBHelper();
-  // Fetch a specific user by user_id and password
-  Future<LoginModels?> getUserByCredentials(String user_id, String password) async {
-    var dbClient = await dbHelper.db;
+  // Fetch login data from Oracle API
+  Future<List<LoginModels>> fetchLoginFromApi() async {
+    try {
+      debugPrint('📡 Fetching login data from: $loginApiEndpoint');
 
-    List<Map> maps = await dbClient.query(
-        tableNameLogin,
-        where: 'user_id = ? AND password = ?',
-        whereArgs: [user_id, password],
-        columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' , 'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id', 'dispatcher', 'dispatcher_id' ]
-    );
+      final response = await http
+          .get(Uri.parse(loginApiEndpoint))
+          .timeout(const Duration(seconds: 30));
 
-    if (maps.isNotEmpty) {
-      return LoginModels.fromMap(maps.first); // Return the first matching user
-    }
-    return null; // No user found
-  }
-  Future<Map?> getUserDetailsById(String user_id) async {
-    var dbClient = await dbHelper.db;
+      if (response.statusCode != 200) {
+        throw Exception('Failed to load login data: ${response.statusCode}');
+      }
 
-    List<Map> maps = await dbClient.query(
-      tableNameLogin,
-      where: 'user_id = ?',
-      whereArgs: [user_id],
-      columns: ['user_id', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id',  'dispatcher', 'dispatcher_id'],
-    );
+      final Map<String, dynamic> data = json.decode(response.body);
 
-    if (maps.isNotEmpty) {
-      return maps.first; // Return the first matching user details as a Map
-    }
-    return null; // No user found
-  }
-  Future<List<LoginModels>> getLogin() async {
-    // Get the database client
-    var dbClient = await dbHelper.db;
+      List<dynamic> items = data['items'] ?? [];
 
-    // Query the database
-    List<Map> maps = await dbClient.query(
-        tableNameLogin,
-        columns: ['user_id', 'password' , 'city' ,'user_name', 'designation' , 'brand' ,  'images' ,'rsm','rsm_id','sm','sm_id','nsm','nsm_id',  'dispatcher', 'dispatcher_id']
-    );
+      debugPrint('✅ Fetched ${items.length} users from API');
 
-    // Print the raw data retrieved from the database
-
-    debugPrint('Raw data from database:');
-
-    // ignore: unused_local_variable
-    for (var map in maps) {
-
-      debugPrint("$map");
-
-    }
-
-    // Convert the raw data into a list
-    List<LoginModels> login = [];
-    for (int i = 0; i < maps.length; i++) {
-      login.add(LoginModels.fromMap(maps[i]));
-    }
-
-    // Print the list of
-
-    debugPrint('Parsed LoginModels objects:');
-
-
-    return login;
-  }
-
-  Future<void> fetchAndSaveLogin() async {
-    // ✅ NO Firebase fetchLatestConfig — directly use saved workspace name
-    debugPrint("${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.getApiUrlLogin}");
-
-    List<dynamic> data = await ApiService.getData(
-        "${Config.getApiUrlServerIP}${Config.getApiUrlERPCompanyName}${Config.getApiUrlLogin}");
-
-    var dbClient = await dbHelper.db;
-
-    debugPrint("Login Data: $data");
-    // Save data to local SQLite database ONLY — no Firestore writes
-    for (var item in data) {
-      LoginModels model = LoginModels.fromMap(item);
-      await dbClient.insert(tableNameLogin, model.toMap());
+      return items.map((json) => LoginModels.fromJson(json)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching login data: $e');
+      return [];
     }
   }
 
-  Future<int>add(LoginModels loginModels) async{
-    var dbClient = await dbHelper.db;
-    return await dbClient.insert(tableNameLogin,loginModels.toMap());
-  }
+  // Get user by credentials
+  Future<LoginModels?> getUserByCredentials(String userId, String password) async {
+    try {
+      final apiData = await fetchLoginFromApi();
 
-  Future<int>update(LoginModels loginModels) async{
-    var dbClient = await dbHelper.db;
-    return await dbClient.update(tableNameLogin,loginModels.toMap(),
-        where: 'user_id = ?', whereArgs: [loginModels.user_id]);
+      // Try to parse userId as int for comparison
+      int? userIdInt = int.tryParse(userId);
 
-  }
+      for (var user in apiData) {
+        bool idMatches = false;
 
-  Future<int>delete(int id) async{
-    var dbClient = await dbHelper.db;
-    return await dbClient.delete(tableNameLogin,
-        where: 'user_id = ?', whereArgs: [id]);
-  }
-  Future<List<LoginModels>> getBookerNamesByDesignation(String designationColumn, String designationValue) async {
-    var dbClient = await dbHelper.db;
+        if (userIdInt != null) {
+          idMatches = user.emp_id == userIdInt;
+        } else {
+          idMatches = user.emp_id.toString() == userId;
+        }
 
-    // Debug: Print the query parameters
-    debugPrint('Querying table: $tableNameLogin');
-    debugPrint('Where: $designationColumn = $designationValue');
+        // For now, we're not validating password as API doesn't return passwords
+        // You'll need to implement password validation separately
+        if (idMatches) {
+          debugPrint('✅ User found: ${user.emp_name}, Role: ${user.job}');
+          return user;
+        }
+      }
 
-    // Query the database for users with the given designation column and value
-    List<Map> maps = await dbClient.query(
-      tableNameLogin,
-      where: '$designationColumn = ?',
-      whereArgs: [designationValue],
-      columns: ['user_id', 'password', 'city', 'user_name', 'designation', 'brand', 'images', 'rsm', 'rsm_id', 'sm', 'sm_id', 'nsm', 'nsm_id',  'dispatcher', 'dispatcher_id'],
-    );
-
-    // Debug: Print the fetched data
-    debugPrint('Fetched data: $maps');
-
-    // Convert the raw data into a list of LoginModels
-    List<LoginModels> bookers = [];
-    for (var map in maps) {
-      bookers.add(LoginModels.fromMap(map));
+      debugPrint('❌ User not found with ID: $userId');
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error in getUserByCredentials: $e');
+      return null;
     }
-
-    return bookers;
-  }
-  Future<List<String>> getBookerNamesByRSMDesignation() async {
-    var dbClient = await dbHelper.db;
-
-    final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-      tableNameLogin,
-      where: 'rsm_id = ?',
-      whereArgs: [user_id],
-    );
-    return bookerNames.map((map) => map['user_id'] as String).toList();
-
-  }
-  Future<List<String>> getBookerNamesBySMDesignation() async {
-    var dbClient = await dbHelper.db;
-
-    final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-      tableNameLogin,
-      where: 'sm_id = ?',
-      whereArgs: [user_id],
-    );
-    return bookerNames.map((map) => map['user_id'] as String).toList();
-
-  }
-  Future<List<String>> getBookerNamesByNSMDesignation() async {
-    var dbClient = await dbHelper.db;
-
-    final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-      tableNameLogin,
-      where: 'nsm_id = ?',
-      whereArgs: [user_id],
-    );
-    return bookerNames.map((map) => map['user_id'] as String).toList();
-
-  }
-  Future<List<String>> getBookerNamesByDISPATCHERDesignation() async {
-    var dbClient = await dbHelper.db;
-
-    final List<Map<String, dynamic>> bookerNames = await dbClient!.query(
-      tableNameLogin,
-      where: 'dispatcher_id = ?',
-      whereArgs: [user_id],
-    );
-    return bookerNames.map((map) => map['user_id'] as String).toList();
-
   }
 
+// // Save login data to local database
+// Future<void> saveLoginDataToLocal(List<LoginModels> loginData) async {
+//   var dbClient = await dbHelper.db;
+//   await dbClient.delete(tableNameLogin);
+//
+//   for (var model in loginData) {
+//     await dbClient.insert(tableNameLogin, model.toJson());
+//   }
+// }
 
+// // Sync login data
+// Future<bool> syncLoginData() async {
+//   try {
+//     final apiData = await fetchLoginFromApi();
+//     if (apiData.isNotEmpty) {
+//       await saveLoginDataToLocal(apiData);
+//       return true;
+//     }
+//     return false;
+//   } catch (e) {
+//     debugPrint('Sync failed: $e');
+//     return false;
+//   }
+// }
 }

@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.metaxperts.order_booking_app">
+    package="com.metaxperts.GPS_Attendance">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -32,13 +32,13 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
-        android:label="BookIT"
+        android:label="GPS Attendance"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
 
         <service
-            android:name="com.metaxperts.order_booking_app.UltraLocationService"
+            android:name="com.metaxperts.GPS_Attendance.UltraLocationService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
@@ -99,7 +99,7 @@
 
         <!-- WorkManager Configuration -->
         <service
-            android:name="com.metaxperts.order_booking_app.workmanager"
+            android:name="com.metaxperts.GPS_Attendance.workmanager"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />

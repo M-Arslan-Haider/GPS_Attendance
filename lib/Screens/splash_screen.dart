@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:order_booking_app/screens/PermissionScreens/camera_screen.dart';
-import 'package:order_booking_app/screens/login_screen.dart';
 
 import 'code_screen.dart';
 class SplashScreen extends StatefulWidget {

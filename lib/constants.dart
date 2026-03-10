@@ -12,8 +12,8 @@ const String companyApiEndpoint = 'http://oracle.metaxperts.net/ords/production/
 const String loginApiEndpoint = 'http://oracle.metaxperts.net/ords/production/loginget/get/';
 
 // Attendance APIs
-const String attendanceInApi = 'http://oracle.metaxperts.net/ords/production/attendanceinpost/post/';
-const String attendanceOutApi = 'http://oracle.metaxperts.net/ords/production/attendanceout/post/';
+// const String attendanceInApi = 'http://oracle.metaxperts.net/ords/production/attendanceinpost/post/';
+// const String attendanceOutApi = 'http://oracle.metaxperts.net/ords/production/attendanceout/post/';
 const String locationApi = 'http://oracle.metaxperts.net/ords/production/location/post/';
 
 // Shared Preferences Keys

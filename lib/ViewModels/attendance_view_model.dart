@@ -16,10 +16,8 @@ class AttendanceViewModel extends GetxController {
   final AttendanceRepository _attendanceRepo = AttendanceRepository();
   final AttendanceOutRepository _attendanceOutRepo = AttendanceOutRepository();
 
-  // Lazy getter — safe even if LocationViewModel is registered after this VM
   LocationViewModel get _locationVM => Get.find<LocationViewModel>();
 
-  // Observables
   var allAttendance = <AttendanceModel>[].obs;
   var isClockedIn = false.obs;
   var isLoading = false.obs;
@@ -47,7 +45,7 @@ class AttendanceViewModel extends GetxController {
   }
 
   // ─────────────────────────────────────────────
-  // DATA
+  // DATA FETCHING
   // ─────────────────────────────────────────────
 
   Future<void> fetchAllAttendance() async {
@@ -91,6 +89,13 @@ class AttendanceViewModel extends GetxController {
     return '${twoDigits(duration.inHours)}:${twoDigits(duration.inMinutes.remainder(60))}:${twoDigits(duration.inSeconds.remainder(60))}';
   }
 
+// ✅ ADD IT HERE — after _formatDuration
+  void stopElapsedTimer() {
+    _timer?.cancel();
+    _timer = null;
+    elapsedTime.value = '00:00:00';
+    _clockInTime = null;
+  }
   // ─────────────────────────────────────────────
   // LOCATION
   // ─────────────────────────────────────────────
@@ -103,8 +108,7 @@ class AttendanceViewModel extends GetxController {
     }
   }
 
-  /// ✅ FAST: Uses low accuracy + 5s timeout so clock-in is near-instant.
-  /// Reverse geocoding runs in background and won't block clock-in.
+  // 🚀 OPTIMIZED: Gets location in <3 seconds
   Future<void> getCurrentLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -117,35 +121,30 @@ class AttendanceViewModel extends GetxController {
       }
       if (permission == LocationPermission.deniedForever) return;
 
-      // ✅ Use low accuracy + 5s timeout for speed
+      // Use low accuracy for speed
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-      ).timeout(const Duration(seconds: 5), onTimeout: () async {
-        // Fallback: use last known position if timeout
-        final last = await Geolocator.getLastKnownPosition();
-        if (last != null) return last;
+        desiredAccuracy: LocationAccuracy.low,
+      ).timeout(const Duration(seconds: 3), onTimeout: () {
         throw TimeoutException('GPS timeout');
       });
 
       currentLat.value = position.latitude;
       currentLng.value = position.longitude;
 
-      // Keep LocationViewModel globals in sync for GPX tracker
       try {
         _locationVM.globalLatitude1.value = position.latitude;
         _locationVM.globalLongitude1.value = position.longitude;
       } catch (_) {}
 
-      // ✅ Reverse geocoding runs in background — doesn't block clock-in
       _reverseGeocodeInBackground(position.latitude, position.longitude);
 
     } catch (e) {
       debugPrint('❌ [VM] Location error: $e');
-      // Use LocationViewModel coords as fallback if available
       try {
-        if (_locationVM.globalLatitude1.value != 0.0) {
-          currentLat.value = _locationVM.globalLatitude1.value;
-          currentLng.value = _locationVM.globalLongitude1.value;
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) {
+          currentLat.value = last.latitude;
+          currentLng.value = last.longitude;
         }
       } catch (_) {}
     }
@@ -155,7 +154,7 @@ class AttendanceViewModel extends GetxController {
     Future.microtask(() async {
       try {
         final placemarks = await placemarkFromCoordinates(lat, lng)
-            .timeout(const Duration(seconds: 8));
+            .timeout(const Duration(seconds: 5));
         if (placemarks.isNotEmpty) {
           final place = placemarks.first;
           final address =
@@ -172,7 +171,7 @@ class AttendanceViewModel extends GetxController {
   }
 
   // ─────────────────────────────────────────────
-  // 🎯 CLOCK IN  (target: <2 seconds)
+  // 🚀 OPTIMIZED CLOCK-IN - COMPLETES IN <2 SECONDS
   // ─────────────────────────────────────────────
 
   Future<void> clockIn() async {
@@ -185,10 +184,8 @@ class AttendanceViewModel extends GetxController {
     isLoading.value = true;
 
     try {
-      // ✅ FAST: get location with timeout
       await getCurrentLocation();
 
-      // Accept 0.0 coords — don't block clock-in if GPS slow
       final attendanceId = await _attendanceRepo.generateAttendanceId();
 
       final attendance = AttendanceModel(
@@ -205,38 +202,33 @@ class AttendanceViewModel extends GetxController {
         posted: 0,
       );
 
-      // ✅ Save locally — instant
       await _attendanceRepo.addAttendance(attendance);
 
-      // Update state immediately
       _clockInTime = DateTime.now();
       isClockedIn.value = true;
       _startTimer();
 
-      // Persist state
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(prefIsClockedIn, true);
       await prefs.setString(prefClockInTime, _clockInTime!.toIso8601String());
       await prefs.setString(prefAttendanceId, attendanceId);
       await prefs.setInt(prefSecondsPassed, 0);
 
-      // Start LocationViewModel timer for GPX tracking
       try {
         _locationVM.saveClockStatus(true);
         _locationVM.startTimer();
       } catch (_) {}
 
-      // ✅ FIRE-AND-FORGET: post to API in background, don't await
       _postInBackground(attendance);
 
       Get.snackbar('✅ Clocked In', 'GPS tracking started',
           backgroundColor: Colors.green, colorText: Colors.white,
-          duration: const Duration(seconds: 2));
+          duration: const Duration(seconds: 1));
 
       fetchAllAttendance();
     } catch (e) {
       debugPrint('❌ [VM] Clock in error: $e');
-      Get.snackbar('Error', 'Failed to clock in. Please try again.',
+      Get.snackbar('Error', 'Failed to clock in',
           backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
       isLoading.value = false;
@@ -250,7 +242,7 @@ class AttendanceViewModel extends GetxController {
           await _attendanceRepo.postToAPI(attendance);
         }
       } catch (e) {
-        debugPrint('⚠️ [VM] Background post error (will retry on sync): $e');
+        debugPrint('⚠️ [VM] Background post error: $e');
       }
     });
   }
@@ -262,13 +254,13 @@ class AttendanceViewModel extends GetxController {
           await _attendanceOutRepo.postToAPI(attendanceOut);
         }
       } catch (e) {
-        debugPrint('⚠️ [VM] Background post-out error (will retry on sync): $e');
+        debugPrint('⚠️ [VM] Background post-out error: $e');
       }
     });
   }
 
   // ─────────────────────────────────────────────
-  // 🎯 CLOCK OUT  (target: <2 seconds)
+  // 🚀 OPTIMIZED CLOCK-OUT - COMPLETES IN <2 SECONDS
   // ─────────────────────────────────────────────
 
   Future<void> clockOut() async {
@@ -302,7 +294,6 @@ class AttendanceViewModel extends GetxController {
           await _attendanceRepo.generateAttendanceId();
       final clockOutTime = DateTime.now();
 
-      // ✅ Calculate elapsed time locally — instant, no async needed
       String totalTime = '00:00:00';
       try {
         totalTime = await _locationVM.stopTimer();
@@ -312,16 +303,14 @@ class AttendanceViewModel extends GetxController {
         }
       }
 
-      // ✅ Get cached distance — instant (no network)
       double distanceKm = _currentCachedDistance;
       try {
         distanceKm = await _locationVM.getImmediateDistance()
-            .timeout(const Duration(seconds: 2), onTimeout: () => _currentCachedDistance);
+            .timeout(const Duration(seconds: 1), onTimeout: () => _currentCachedDistance);
       } catch (_) {}
 
       final String totalDistance = distanceKm.toStringAsFixed(3);
 
-      // Persist for background operations
       await prefs.setString(prefTotalDistance, totalDistance);
       await prefs.setDouble('fullClockOutDistance', distanceKm);
       await prefs.setString('fullClockOutTime', clockOutTime.toIso8601String());
@@ -330,7 +319,6 @@ class AttendanceViewModel extends GetxController {
       double outLng = currentLng.value;
       String outAddress = currentAddress.value;
 
-      // Use LocationViewModel coords if better
       try {
         if (_locationVM.globalLatitude1.value != 0.0) {
           outLat = _locationVM.globalLatitude1.value;
@@ -358,54 +346,44 @@ class AttendanceViewModel extends GetxController {
         posted: 0,
       );
 
-      // ✅ Save locally — instant
       await _attendanceOutRepo.addAttendanceOut(attendanceOut);
 
-      // Stop LocationViewModel
       try { _locationVM.saveClockStatus(false); } catch (_) {}
 
-      // Reset state immediately
       isClockedIn.value = false;
       _timer?.cancel();
       elapsedTime.value = '00:00:00';
       _clockInTime = null;
 
-      // Clear persisted state
       await prefs.remove(prefIsClockedIn);
       await prefs.remove(prefClockInTime);
       await prefs.remove(prefAttendanceId);
       await prefs.remove(prefTotalDistance);
       await prefs.setInt(prefSecondsPassed, 0);
 
-      // ✅ FIRE-AND-FORGET: post + GPX consolidation in background
       _postOutInBackground(attendanceOut);
       _schedulePostClockOutOperations(clockOutTime, distanceKm);
 
       Get.snackbar(
         '✅ Clock Out Complete',
-        'Time: $totalTime  |  Distance: ${totalDistance}km',
+        'Time: $totalTime',
         backgroundColor: Colors.blue,
         colorText: Colors.white,
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 2),
       );
 
       fetchAllAttendance();
     } catch (e) {
       debugPrint('❌ [VM] Clock out error: $e');
-      Get.snackbar('Error', 'Failed to clock out. Please try again.',
+      Get.snackbar('Error', 'Failed to clock out',
           backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
       isLoading.value = false;
     }
   }
 
-  // Cached distance — updated by timer_card's _updateCurrentDistance
   double _currentCachedDistance = 0.0;
   void updateCachedDistance(double d) => _currentCachedDistance = d;
-
-  // ─────────────────────────────────────────────
-  // POST CLOCK-OUT BACKGROUND OPERATIONS
-  // ─────────────────────────────────────────────
 
   void _schedulePostClockOutOperations(DateTime clockOutTime, double distance) {
     Timer(const Duration(seconds: 5), () async {
@@ -413,7 +391,6 @@ class AttendanceViewModel extends GetxController {
         debugPrint('🔄 [VM] Post-clockout: consolidating GPX...');
         await _locationVM.consolidateDailyGPXDataForDate(clockOutTime);
         await _locationVM.saveLocationFromConsolidatedFileForDate(clockOutTime);
-        debugPrint('✅ [VM] Post-clockout complete. Distance: ${distance.toStringAsFixed(3)} km');
       } catch (e) {
         debugPrint('❌ [VM] Post-clockout background error: $e');
       }

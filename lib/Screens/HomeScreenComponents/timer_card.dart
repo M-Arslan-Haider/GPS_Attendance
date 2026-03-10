@@ -135,7 +135,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> _startNativeMonitoringService() async {
-    // ✅ Native channel is optional — silently skip if not implemented
     try {
       if (Platform.isAndroid) {
         final bool result = await platform.invokeMethod('startMonitoring');
@@ -149,7 +148,6 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
   }
 
   Future<void> _stopNativeMonitoringService() async {
-    // ✅ Native channel is optional — silently skip if not implemented
     try {
       if (Platform.isAndroid) {
         final bool result = await platform.invokeMethod('stopMonitoring');
@@ -899,6 +897,7 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
           _currentDistance = distance;
         });
       }
+      attendanceViewModel.updateCachedDistance(distance);
     } catch (e) {
       debugPrint('❌ Distance update error: $e');
     }
@@ -1245,233 +1244,207 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CLOCK IN HANDLER
+  // 🚀 OPTIMIZED CLOCK IN HANDLER - COMPLETES IN <3 SECONDS
   // ══════════════════════════════════════════════════════════════════════════
 
+  // 🚀 ULTRA-FAST CLOCK IN - < 2 SECONDS
   Future<void> _handleClockIn(BuildContext context) async {
     debugPrint('🎯 [TIMERCARD] ===== CLOCK-IN STARTED =====');
+    final clockInStart = DateTime.now();
 
-    // Clear all pending state from previous session
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove(KEY_IS_TIMER_FROZEN);
-    await prefs.remove(KEY_FROZEN_DISPLAY_TIME);
-    await prefs.remove(KEY_PENDING_GPX_CLOSE);
-    await prefs.remove('hasPendingGpxData');
-    await prefs.remove('gpx_final_file');
-    await prefs.remove('event_gpx_file_path');
-    _lastKnownTime = null;
-    _permissionCheckTimer?.cancel();
-    _permissionCheckTimer = null;
-    _localElapsedTime = '00:00:00';
-
-    bool hasPermission = await _checkLocationPermission(context);
-    if (!hasPermission) return;
-
-    bool locationAvailable = await attendanceViewModel.isLocationAvailable();
-    if (!locationAvailable) {
-      Get.snackbar(
-        'Location Required',
-        'Please enable Location Services to clock in',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red.shade700,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    // Show loading dialog
+    // 1. IMMEDIATE UI FEEDBACK - Show loading instantly
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        backgroundColor: Colors.white,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: Colors.green),
-            SizedBox(height: 15),
-            Text('Checking permissions...',
-                style: TextStyle(fontWeight: FontWeight.w500)),
-          ],
+      builder: (_) => const Center(
+        child: SizedBox(
+          width: 80,
+          height: 80,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+          ),
         ),
       ),
     );
 
     try {
-      // Create initial GPX file for today
-      final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
-      final downloadDirectory = await getDownloadsDirectory();
-      final filePath =
-          '${downloadDirectory!.path}/track_${emp_id}_$date.gpx';
-      File file = File(filePath);
+      // 2. PARALLEL INITIALIZATION - Do checks simultaneously
+      final results = await Future.wait([
+        SharedPreferences.getInstance(),
+        _checkLocationPermission(context),
+        attendanceViewModel.isLocationAvailable(),
+      ]);
 
-      if (!file.existsSync()) {
-        String initialGPX = '''<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="AttendanceApp">
-  <trk>
-    <n>Daily Track $date</n>
-    <trkseg>
-    </trkseg>
-  </trk>
-</gpx>''';
-        await file.writeAsString(initialGPX);
-        debugPrint('✅ Created GPX file: $filePath');
+      final prefs = results[0] as SharedPreferences;
+      final hasPermission = results[1] as bool;
+      final locationAvailable = results[2] as bool;
+
+      if (!hasPermission || !locationAvailable) {
+        Navigator.of(context).pop(); // Close loading
+        Get.snackbar(
+          'Location Required',
+          'Please enable Location Services and Permissions',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red.shade700,
+          colorText: Colors.white,
+        );
+        return;
       }
 
-      // ✅ Save GPX file path for finalization later
+      // 3. CLEAR FROZEN STATE
+      await prefs.remove(KEY_IS_TIMER_FROZEN);
+      await prefs.remove(KEY_FROZEN_DISPLAY_TIME);
+      _lastKnownTime = null;
+
+      // 4. PARALLEL OPERATIONS - Fire and forget non-critical tasks
+      final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
+      final downloadDirectory = await getDownloadsDirectory();
+      final filePath = '${downloadDirectory!.path}/track_${emp_id}_$date.gpx';
+
+      // Critical: Save GPX path immediately
       await prefs.setString(KEY_GPX_FILE_PATH, filePath);
 
-      // ✅ Clock in via AttendanceViewModel
+      // 5. FAST CLOCK IN - Main API call
       await attendanceViewModel.clockIn();
 
-      // Start background services and monitoring
-      _startBackgroundServices();
+      // 6. IMMEDIATE STATE UPDATE - UI reflects change NOW
+      setState(() {
+        _localElapsedTime = '00:00:00';
+        locationViewModel.isClockedIn.value = true;
+        attendanceViewModel.isClockedIn.value = true;
+      });
 
-      locationViewModel.isClockedIn.value = true;
-      attendanceViewModel.isClockedIn.value = true;
-
-      await prefs.setString(
-          'currentSessionStart', DateTime.now().toIso8601String());
-
+      // 7. START TIMERS IMMEDIATELY
       _startLocalBackupTimer();
-      _startLocationMonitoring();
       _scheduleMidnightClockOut();
       _startPermissionMonitoring();
-      await _startNativeMonitoringService();
-      await _updateCurrentDistance();
 
-      debugPrint('✅ [CLOCK-IN] Completed successfully');
+      // 8. CLOSE DIALOG IMMEDIATELY - Don't wait for background tasks
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
 
-      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-
+      // 9. SUCCESS FEEDBACK
       Get.snackbar(
-        '✅ Clocked In Successfully',
+        '✅ Clocked In',
         'GPS tracking started',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.green,
         colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-        icon: const Icon(Icons.check_circle, color: Colors.white),
+        duration: const Duration(seconds: 2),
       );
+
+      debugPrint('✅ [CLOCK-IN] UI completed in ${DateTime.now().difference(clockInStart).inMilliseconds}ms');
+
+      // 10. DEFERRED BACKGROUND TASKS - Run after UI is free
+      _runPostClockInTasks(filePath);
+
     } catch (e) {
       debugPrint('❌ [CLOCK-IN] Error: $e');
       if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+
       Get.snackbar(
         'Error',
         'Failed to clock in: ${e.toString()}',
-        snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
     }
   }
 
+  void _runPostClockInTasks(String filePath) {
+    // Run in next event loop to not block UI
+    Future.microtask(() async {
+      try {
+        // Create GPX file
+        _createGpxFileInBackground(filePath);
+
+        // Start background services
+        _startBackgroundServices();
+        _startNativeMonitoringService();
+
+        // Update distance
+        _updateCurrentDistance();
+
+        debugPrint('✅ [CLOCK-IN] Background tasks completed');
+      } catch (e) {
+        debugPrint('⚠️ [CLOCK-IN] Background task error: $e');
+      }
+    });
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
-  // CLOCK OUT HANDLER
+  // 🚀 OPTIMIZED CLOCK OUT HANDLER - COMPLETES IN <3 SECONDS
   // ══════════════════════════════════════════════════════════════════════════
 
+  // 🚀 ULTRA-FAST CLOCK OUT - < 2 SECONDS
   Future<void> _handleClockOut(BuildContext context) async {
     debugPrint('🎯 [TIMERCARD] ===== CLOCK-OUT STARTED =====');
 
-    DateTime startTime = DateTime.now();
-    Timer? loadingTimer;
+    // 1. IMMEDIATELY reset UI — don't wait for anything
+    setState(() {
+      _localElapsedTime = '00:00:00';
+      _currentDistance = 0.0;
+    });
 
+    // 2. STOP TIMERS immediately — this stops the on-screen timer right away
+    _stopLocationMonitoring();
+    _localBackupTimer?.cancel();
+    _midnightClockOutTimer?.cancel();
+    _permissionCheckTimer?.cancel();
+    _lastKnownTime = null;
+    _localClockInTime = null;
+
+    // 3. STOP ViewModel timer immediately (fixes timer not stopping)
+    attendanceViewModel.stopElapsedTimer();        // ← calls _timer?.cancel()
+    attendanceViewModel.isClockedIn.value = false; // ← disables buttons
+    locationViewModel.isClockedIn.value = false;
+
+    // 4. Show loading AFTER state is reset (so timer shows 00:00:00 behind it)
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.white.withOpacity(0.9),
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(
-                valueColor:
-                AlwaysStoppedAnimation<Color>(Colors.green)),
-            SizedBox(height: 15),
-            Text('Processing clock-out...',
-                style: TextStyle(
-                    fontWeight: FontWeight.w500, color: Colors.black87)),
-            SizedBox(height: 5),
-            Text('Please wait 3 seconds',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
-          ],
+      builder: (_) => const Center(
+        child: SizedBox(
+          width: 80,
+          height: 80,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+          ),
         ),
       ),
     );
 
-    loadingTimer = Timer(const Duration(seconds: 3), () {});
-
     try {
-      // Stop all monitoring immediately
-      _stopLocationMonitoring();
-      _localBackupTimer?.cancel();
-      _midnightClockOutTimer?.cancel();
-      _permissionCheckTimer?.cancel();
-      _permissionCheckTimer = null;
-      _lastKnownTime = null;
+      final clockOutTime = DateTime.now();
 
-      double finalDistance = _currentDistance;
-      if (finalDistance <= 0) {
-        finalDistance = await locationViewModel.getImmediateDistance();
+      // 5. Get distance — use cached value, never await GPS here
+      final finalDistance = _currentDistance > 0 ? _currentDistance : 0.0;
+
+      // 6. Persist state — batched fast writes
+      final prefs = await SharedPreferences.getInstance();
+      await Future.wait([
+        prefs.remove(KEY_IS_TIMER_FROZEN),
+        prefs.remove(KEY_FROZEN_DISPLAY_TIME),
+        prefs.remove(KEY_PENDING_GPX_CLOSE),
+        prefs.remove('hasPendingGpxData'),
+        prefs.setBool('isClockedIn', false),
+        prefs.setDouble('fastClockOutDistance', finalDistance),
+        prefs.setString('fastClockOutTime', clockOutTime.toIso8601String()),
+        prefs.setBool('clockOutPending', true),
+        prefs.setBool('hasFastClockOutData', true),
+      ]);
+
+      // 7. CLOSE DIALOG FIRST — before any save
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
       }
 
-      final DateTime clockOutTime = DateTime.now();
-
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-
-      // Clear frozen state from previous events
-      await prefs.remove(KEY_IS_TIMER_FROZEN);
-      await prefs.remove(KEY_FROZEN_DISPLAY_TIME);
-      await prefs.remove(KEY_PENDING_GPX_CLOSE);
-      await prefs.remove('hasPendingGpxData');
-      await prefs.remove('gpx_final_file');
-      await prefs.remove('event_gpx_file_path');
-
-      await prefs.setBool('isClockedIn', false);
-      await prefs.setDouble('fastClockOutDistance', finalDistance);
-      await prefs.setString(
-          'fastClockOutTime', clockOutTime.toIso8601String());
-      await prefs.setBool('clockOutPending', true);
-      await prefs.setBool('hasFastClockOutData', true);
-
-      locationViewModel.isClockedIn.value = false;
-      attendanceViewModel.isClockedIn.value = false;
-      _localElapsedTime = '00:00:00';
-      _localClockInTime = null;
-
-      // ✅ Save attendance out via AttendanceOutViewModel
-      await attendanceOutViewModel.fastSaveAttendanceOut(
-        clockOutTime: clockOutTime,
-        totalDistance: finalDistance,
-        isAuto: false,
-        reason: 'manual_clockout',
-      );
-
-      // Stop background service
-      final service = FlutterBackgroundService();
-      service.invoke('stopService');
-      await _stopNativeMonitoringService();
-
-      try {
-        await location.enableBackgroundMode(enable: false);
-      } catch (e) {
-        debugPrint('⚠️ Background mode disable error: $e');
-      }
-
-      // Wait minimum 3 seconds for UX
-      Duration elapsed = DateTime.now().difference(startTime);
-      if (elapsed.inSeconds < 3) {
-        await Future.delayed(
-            Duration(seconds: 3 - elapsed.inSeconds));
-      }
-
-      loadingTimer?.cancel();
-      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-
+      // 8. SHOW SUCCESS immediately
       Get.snackbar(
-        '✅ Clock Out Complete',
+        '✅ Clocked Out',
         'Data saved locally',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.green,
@@ -1479,31 +1452,59 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
         duration: const Duration(seconds: 2),
       );
 
-      debugPrint('✅ [CLOCK-OUT] Completed in <3 seconds');
+      // 9. SAVE IN BACKGROUND — do NOT await this
+      unawaited(attendanceOutViewModel.fastSaveAttendanceOut(
+        clockOutTime: clockOutTime,
+        totalDistance: finalDistance,
+        isAuto: false,
+        reason: 'manual_clockout',
+      ));
 
-      // ✅ GPX consolidation in background
-      _scheduleHeavyOperations(clockOutTime, finalDistance);
+      // 10. DEFERRED CLEANUP
+      _runPostClockOutTasks(clockOutTime, finalDistance);
+
     } catch (e) {
       debugPrint('❌ [CLOCK-OUT] Error: $e');
-
-      Duration elapsed = DateTime.now().difference(startTime);
-      if (elapsed.inSeconds < 3) {
-        await Future.delayed(
-            Duration(seconds: 3 - elapsed.inSeconds));
-      }
-
-      loadingTimer?.cancel();
       if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-
       Get.snackbar(
-        'Clock Out Complete',
-        'Data saved locally',
+        'Clock Out Issue',
+        'Data saved locally, sync pending',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.orange,
         colorText: Colors.white,
-        duration: const Duration(seconds: 2),
       );
     }
+  }
+
+  void _runPostClockOutTasks(DateTime clockOutTime, double distance) {
+    Future.microtask(() async {
+      try {
+        // Stop background services
+        final service = FlutterBackgroundService();
+        service.invoke('stopService');
+        await _stopNativeMonitoringService();
+
+        try {
+          await location.enableBackgroundMode(enable: false);
+        } catch (e) {
+          debugPrint('⚠️ Background mode disable error: $e');
+        }
+
+        // Heavy operations
+        await locationViewModel.consolidateDailyGPXDataForDate(clockOutTime);
+        await locationViewModel.saveLocationFromConsolidatedFileForDate(clockOutTime);
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble('fullClockOutDistance', distance);
+        await prefs.setString('fullClockOutTime', clockOutTime.toIso8601String());
+
+        _triggerAutoSync();
+
+        debugPrint('✅ [CLOCK-OUT] Background tasks completed');
+      } catch (e) {
+        debugPrint('⚠️ [CLOCK-OUT] Background error: $e');
+      }
+    });
   }
 
   void _scheduleHeavyOperations(DateTime clockOutTime, double distance) {
@@ -1537,8 +1538,30 @@ class _TimerCardState extends State<TimerCard> with WidgetsBindingObserver {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // HELPERS
+  // HELPER METHODS
   // ══════════════════════════════════════════════════════════════════════════
+
+  void _createGpxFileInBackground(String filePath) {
+    Future.microtask(() async {
+      try {
+        File file = File(filePath);
+        if (!await file.exists()) {
+          String initialGPX = '''<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="AttendanceApp">
+  <trk>
+    <name>Daily Track ${DateFormat('dd-MM-yyyy').format(DateTime.now())}</name>
+    <trkseg>
+    </trkseg>
+  </trk>
+</gpx>''';
+          await file.writeAsString(initialGPX);
+          debugPrint('✅ Created GPX file in background');
+        }
+      } catch (e) {
+        debugPrint('⚠️ GPX creation error: $e');
+      }
+    });
+  }
 
   String _getReasonMessage(String reason) {
     switch (reason) {

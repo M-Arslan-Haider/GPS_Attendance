@@ -1,418 +1,1179 @@
+// import 'dart:async';
+// import 'dart:io';
+//
+// import 'package:flutter/foundation.dart';
+// import 'package:flutter/material.dart';
+// import 'package:geolocator/geolocator.dart';
+// import 'package:get/get.dart';
+// import 'package:intl/intl.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:http/http.dart' as http;
+//
+// import '../Models/attendance_Model.dart';
+// import '../Repositories/attendance_repository.dart';
+// import 'location_view_model.dart';
+//
+// class AttendanceViewModel extends GetxController {
+//   // ── Dependencies ──────────────────────────────────────────────────────────
+//   final AttendanceRepository _repo       = AttendanceRepository();
+//   final LocationViewModel    _locationVM = Get.put(LocationViewModel());
+//
+//   // ── Observables ───────────────────────────────────────────────────────────
+//   var allAttendance = <AttendanceModel>[].obs;
+//   var isClockedIn   = false.obs;
+//   var elapsedTime   = '00:00:00'.obs;
+//   var isLoading     = false.obs;
+//
+//   // ── Timer state ───────────────────────────────────────────────────────────
+//   DateTime? _clockInTime;
+//   Timer?    _timer;
+//
+//   // ── Serial counter state ──────────────────────────────────────────────────
+//   int    _serialCounter   = 1;
+//   String _currentMonth    = DateFormat('MMM').format(DateTime.now());
+//
+//   // ── SharedPreferences keys ────────────────────────────────────────────────
+//   static const String _keyClockInTime   = 'clockInTime';
+//   static const String _keyCurrentId     = 'currentAttendanceId';
+//   static const String _keyAttendanceId  = 'attendanceId';         // ✅ also written so clock-out can read it
+//   static const String _keyTotalTime     = 'totalTime';
+//   static const String _keySecondsPassed = 'secondsPassed';
+//   static const String _keyIsClockedIn   = 'isClockedIn';
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // LIFECYCLE
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   @override
+//   void onInit() {
+//     super.onInit();
+//     fetchAllAttendance();
+//     _restoreClockState();
+//     _initSerialCounter();
+//   }
+//
+//   @override
+//   void onClose() {
+//     _stopTimer();
+//     super.onClose();
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PRIVATE – SERIAL COUNTER
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<void> _initSerialCounter() async {
+//     final prefs        = await SharedPreferences.getInstance();
+//     final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+//     final String month = DateFormat('MMM').format(DateTime.now());
+//     final String lastDay = prefs.getString('lastAttendanceDay') ?? '';
+//
+//     if (lastDay != today) {
+//       _serialCounter = 1;
+//       _currentMonth  = month;
+//       await prefs.setInt('attendanceSerialCounter', _serialCounter);
+//       await prefs.setString('attendanceCurrentMonth', _currentMonth);
+//       await prefs.setString('lastAttendanceDay', today);
+//       debugPrint('🔄 [VM] New day — serial counter reset to 1');
+//     } else {
+//       _serialCounter = prefs.getInt('attendanceSerialCounter') ?? 1;
+//       _currentMonth  = prefs.getString('attendanceCurrentMonth') ?? month;
+//       if (_currentMonth != month) {
+//         _serialCounter = 1;
+//         _currentMonth  = month;
+//       }
+//       debugPrint('[VM] Loaded serial counter: $_serialCounter');
+//     }
+//   }
+//
+//   Future<void> _saveSerialCounter() async {
+//     final prefs = await SharedPreferences.getInstance();
+//     await prefs.setInt('attendanceSerialCounter', _serialCounter);
+//     await prefs.setString('attendanceCurrentMonth', _currentMonth);
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PUBLIC – METHODS CALLED FROM timer_card.dart
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<bool> isLocationAvailable() async {
+//     try {
+//       return await Geolocator.isLocationServiceEnabled();
+//     } catch (_) {
+//       return true;
+//     }
+//   }
+//
+//   Future<void> updateCachedDistance(double distance) async {
+//     final prefs = await SharedPreferences.getInstance();
+//     await prefs.setDouble('cachedDistance', distance);
+//     debugPrint('📏 [VM] Cached distance updated: $distance km');
+//   }
+//
+//   Future<void> syncUnposted() async => syncNow();
+//
+//   Future<void> saveFormAttendanceIn({
+//     String empId   = '',
+//     String empName = '',
+//     String job     = '',
+//     String city    = '',
+//   }) async {
+//     await clockIn(empId: empId, empName: empName, job: job, city: city);
+//   }
+//
+//   void stopElapsedTimer() {
+//     _stopTimer();
+//     elapsedTime.value = '00:00:00';
+//     debugPrint('🛑 [VM] Elapsed timer stopped');
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PUBLIC – CLOCK-IN
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<void> clockIn({
+//     String empId   = '',
+//     String empName = '',
+//     String job     = '',
+//     String city    = '',
+//   }) async {
+//     debugPrint('🎯 [VM] ===== CLOCK-IN STARTED =====');
+//
+//     // 1. Guard: already clocked in
+//     if (isClockedIn.value) {
+//       Get.snackbar('Already Clocked In', 'You are already clocked in',
+//           snackPosition: SnackPosition.TOP, backgroundColor: Colors.green);
+//       return;
+//     }
+//
+//     // 2. Location service check
+//     if (!await _isLocationServiceOn()) {
+//       Get.snackbar('Location Required', 'Please turn on device location',
+//           backgroundColor: Colors.red);
+//       return;
+//     }
+//
+//     // 3. Generate ATD attendance ID
+//     await _initSerialCounter();
+//     String attendanceId = _buildAttendanceId(empId: empId);
+//
+//     // 3b. Regenerate if duplicate found
+//     if (await _idExistsInDb(attendanceId)) {
+//       _serialCounter++;
+//       await _saveSerialCounter();
+//       attendanceId = _buildAttendanceId(empId: empId);
+//       debugPrint('🔄 [VM] Duplicate found — regenerated: $attendanceId');
+//     }
+//
+//     // 4. Mark clocked-in immediately so UI responds fast
+//     _clockInTime      = DateTime.now();
+//     isClockedIn.value = true;
+//     elapsedTime.value = '00:00:00';
+//     _startTimer();
+//
+//     Get.snackbar('Clock-In Successful', 'You are now clocked in',
+//         backgroundColor: Colors.green);
+//     debugPrint('✅ [VM] Clock-in set. ID: $attendanceId');
+//
+//     // 5. Background: persist & sync
+//     await _handleBackgroundTasks(
+//       attendanceId: attendanceId,
+//       empId       : empId,
+//       empName     : empName,
+//       job         : job,
+//       city        : city,
+//     );
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PRIVATE – ATD ID BUILDER
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   /// Format: ATD-{empId}-{dd}-{MMM}-{serial}
+//   /// Example: ATD-EMP001-11-Mar-001
+//   String _buildAttendanceId({required String empId}) {
+//     final DateTime now     = DateTime.now();
+//     final String   day     = DateFormat('dd').format(now);
+//     final String   month   = DateFormat('MMM').format(now);
+//     final String   serial  = _serialCounter.toString().padLeft(3, '0');
+//     final String   empPart = empId.isNotEmpty ? empId : 'EMP';
+//     final String   id      = 'ATD-$empPart-$day-$month-$serial';
+//     debugPrint('🆔 [VM] Generated ID: $id');
+//     return id;
+//   }
+//
+//   Future<bool> _idExistsInDb(String id) async {
+//     try {
+//       final records = await _repo.getAll();
+//       return records.any((r) => r.attendance_in_id == id);
+//     } catch (e) {
+//       debugPrint('❌ [VM] _idExistsInDb error: $e');
+//       return false;
+//     }
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PUBLIC – FETCH / ADD / DELETE
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<void> fetchAllAttendance() async {
+//     final records = await _repo.getAll();
+//     allAttendance.value = records;
+//   }
+//
+//   Future<void> addAttendance(AttendanceModel model) async {
+//     await _repo.add(model);
+//     await fetchAllAttendance();
+//   }
+//
+//   Future<void> deleteAttendance(String id) async {
+//     await _repo.delete(id);
+//     await fetchAllAttendance();
+//   }
+//
+//   Future<void> syncNow() async {
+//     final status = await _internetStatus();
+//     if (status != 'none') {
+//       debugPrint('🌐 [VM] Manual sync triggered');
+//       await _repo.syncUnposted();
+//       await fetchAllAttendance();
+//     } else {
+//       debugPrint('🌐 [VM] No internet – sync skipped');
+//     }
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PUBLIC – CLOCK-IN STATE HELPERS
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<String?> getCurrentAttendanceId() async {
+//     final prefs = await SharedPreferences.getInstance();
+//     // Check all three keys written in _handleBackgroundTasks
+//     return prefs.getString(_keyCurrentId)
+//         ?? prefs.getString(_keyAttendanceId)
+//         ?? prefs.getString('clockInAttendanceId');
+//   }
+//
+//   Future<void> clearClockInState() async {
+//     _stopTimer();
+//     isClockedIn.value = false;
+//     _clockInTime      = null;
+//     elapsedTime.value = '00:00:00';
+//
+//     final prefs = await SharedPreferences.getInstance();
+//     await prefs.remove(_keyClockInTime);
+//     await prefs.remove(_keyTotalTime);
+//     await prefs.setInt(_keySecondsPassed, 0);
+//     await prefs.setBool(_keyIsClockedIn, false);
+//
+//     // Keep ID reference in usedAttendanceId then clear
+//     final currentId = prefs.getString(_keyCurrentId);
+//     if (currentId != null) {
+//       await prefs.setString('usedAttendanceId', currentId);
+//       await prefs.remove(_keyCurrentId);
+//     }
+//
+//     debugPrint('🔄 [VM] Clock-in state cleared');
+//   }
+//
+//   Future<Map<String, dynamic>> getAttendanceStatus() async {
+//     final prefs        = await SharedPreferences.getInstance();
+//     final currentId    = prefs.getString(_keyCurrentId);
+//     final clockInTime  = prefs.getString(_keyClockInTime);
+//     final isClockedInS = prefs.getBool(_keyIsClockedIn) ?? false;
+//     final allRecords   = await _repo.getAll();
+//
+//     return {
+//       'currentId'   : currentId,
+//       'clockInTime' : clockInTime,
+//       'isClockedIn' : isClockedInS,
+//       'totalRecords': allRecords.length,
+//       'idExistsInDB': currentId != null &&
+//           allRecords.any((r) => r.attendance_in_id == currentId),
+//     };
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PUBLIC – DUPLICATE CLEANUP
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<bool> checkForDuplicate(String attendanceId) async {
+//     try {
+//       final records = await _repo.getAll();
+//       return records.any((r) => r.attendance_in_id == attendanceId);
+//     } catch (e) {
+//       debugPrint('❌ [VM] checkForDuplicate error: $e');
+//       return false;
+//     }
+//   }
+//
+//   Future<void> cleanDuplicateRecords() async {
+//     try {
+//       final allRecords = await _repo.getAll();
+//       final seen       = <String>{};
+//       final toDelete   = <String>[];
+//
+//       for (final r in allRecords) {
+//         final id = r.attendance_in_id?.toString() ?? '';
+//         if (id.isEmpty) continue;
+//         if (seen.contains(id)) {
+//           toDelete.add(id);
+//         } else {
+//           seen.add(id);
+//         }
+//       }
+//
+//       for (final id in toDelete) {
+//         await _repo.delete(id);
+//         debugPrint('🗑️ [VM] Removed duplicate: $id');
+//       }
+//
+//       if (toDelete.isNotEmpty) {
+//         debugPrint('✅ [VM] Cleaned ${toDelete.length} duplicates');
+//         await fetchAllAttendance();
+//       } else {
+//         debugPrint('✅ [VM] No duplicates found');
+//       }
+//     } catch (e) {
+//       debugPrint('❌ [VM] cleanDuplicateRecords error: $e');
+//     }
+//   }
+//
+//   Future<void> forceCleanup() async {
+//     debugPrint('🧹 [VM] Force cleanup started...');
+//     await cleanDuplicateRecords();
+//
+//     final prefs        = await SharedPreferences.getInstance();
+//     final isClockedInS = prefs.getBool(_keyIsClockedIn) ?? false;
+//     final clockInTime  = prefs.getString(_keyClockInTime);
+//
+//     if (isClockedInS && clockInTime == null) {
+//       debugPrint('⚠️ [VM] Inconsistent state – resetting');
+//       await prefs.setBool(_keyIsClockedIn, false);
+//     }
+//
+//     final allRecords = await _repo.getAll();
+//     final currentId  = prefs.getString(_keyCurrentId);
+//     if (currentId != null &&
+//         !allRecords.any((r) => r.attendance_in_id == currentId)) {
+//       debugPrint('⚠️ [VM] Orphaned currentId removed: $currentId');
+//       await prefs.remove(_keyCurrentId);
+//     }
+//
+//     debugPrint('✅ [VM] Force cleanup done');
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PRIVATE – BACKGROUND TASKS AFTER CLOCK-IN
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<void> _handleBackgroundTasks({
+//     required String attendanceId,
+//     required String empId,
+//     required String empName,
+//     required String job,
+//     required String city,
+//   }) async {
+//     debugPrint('🛰 [VM] Background tasks started...');
+//     try {
+//       final prefs = await SharedPreferences.getInstance();
+//
+//       // A. Persist clock-in time + ID to ALL three keys (clock-out reads any of them)
+//       await prefs.setString(_keyClockInTime, _clockInTime!.toIso8601String());
+//       await prefs.setString(_keyCurrentId, attendanceId);
+//       await prefs.setString(_keyAttendanceId, attendanceId);        // ✅ primary key for clock-out
+//       await prefs.setString('clockInAttendanceId', attendanceId);   // ✅ extra backup
+//       await prefs.setBool(_keyIsClockedIn, true);
+//       await prefs.setInt(_keySecondsPassed, 0);
+//       await prefs.remove(_keyTotalTime);
+//
+//       // B. Get GPS
+//       final gps     = await _getValidGPS();
+//       final lat     = gps['lat']!;
+//       final lng     = gps['lng']!;
+//       final address = _locationVM.shopAddress.value;
+//       debugPrint('📍 [VM] GPS: lat=$lat, lng=$lng');
+//
+//       // C. Capture exact clock-in datetime
+//       final DateTime clockInNow = _clockInTime ?? DateTime.now();
+//
+//       // D. Save to local DB — original field names preserved
+//       final model = AttendanceModel(
+//         attendance_in_id  : attendanceId,
+//         emp_id            : empId,
+//         emp_name          : empName,
+//         job               : job,
+//         lat_in            : lat.toString(),
+//         lng_in            : lng.toString(),
+//         city              : city,
+//         address           : address,
+//         attendance_in_date: clockInNow,   // ✅ real clock-in date (not DateTime.now() at save time)
+//         attendance_in_time: clockInNow,   // ✅ real clock-in time
+//         posted            : 0,
+//       );
+//       await addAttendance(model);
+//       debugPrint('✅ [VM] Saved to local DB: $attendanceId | time=${DateFormat('hh:mm:ss a').format(clockInNow)}');
+//
+//       // E. Increment serial for next clock-in
+//       _serialCounter++;
+//       await _saveSerialCounter();
+//
+//       // F. Try server sync
+//       final status = await _internetStatus()
+//           .timeout(const Duration(seconds: 3), onTimeout: () => 'none');
+//
+//       if (status != 'none') {
+//         debugPrint('🌐 [VM] Syncing to server...');
+//         await _repo.syncUnposted();
+//         await fetchAllAttendance();
+//         debugPrint('✅ [VM] Server sync complete');
+//       } else {
+//         debugPrint('🌐 [VM] No internet – will sync later');
+//       }
+//     } catch (e) {
+//       debugPrint('⚠️ [VM] Background tasks error: $e');
+//     }
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PRIVATE – GPS HELPERS
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<bool> _isLocationServiceOn() async {
+//     try {
+//       return await Geolocator.isLocationServiceEnabled();
+//     } catch (_) {
+//       return true;
+//     }
+//   }
+//
+//   Future<Map<String, double>> _getValidGPS() async {
+//     // 1st: fresh position
+//     try {
+//       final pos = await Geolocator.getCurrentPosition(
+//         desiredAccuracy: LocationAccuracy.high,
+//         timeLimit: const Duration(seconds: 10),
+//       );
+//       if (pos.latitude != 0.0 || pos.longitude != 0.0) {
+//         debugPrint('✅ [GPS] Fresh: ${pos.latitude}, ${pos.longitude}');
+//         return {'lat': pos.latitude, 'lng': pos.longitude};
+//       }
+//     } catch (e) {
+//       debugPrint('⚠️ [GPS] getCurrentPosition failed: $e');
+//     }
+//
+//     // 2nd: wait for LocationViewModel (max 5 s)
+//     for (int i = 0; i < 10; i++) {
+//       await Future.delayed(const Duration(milliseconds: 500));
+//       final lat = _locationVM.globalLatitude1.value;
+//       final lng = _locationVM.globalLongitude1.value;
+//       if (lat != 0.0 || lng != 0.0) {
+//         debugPrint('✅ [GPS] From LocationViewModel: $lat, $lng');
+//         return {'lat': lat, 'lng': lng};
+//       }
+//     }
+//
+//     // 3rd: last known
+//     try {
+//       final last = await Geolocator.getLastKnownPosition();
+//       if (last != null && (last.latitude != 0.0 || last.longitude != 0.0)) {
+//         debugPrint('✅ [GPS] Last known: ${last.latitude}, ${last.longitude}');
+//         return {'lat': last.latitude, 'lng': last.longitude};
+//       }
+//     } catch (e) {
+//       debugPrint('⚠️ [GPS] getLastKnownPosition failed: $e');
+//     }
+//
+//     // Fallback
+//     debugPrint('⚠️ [GPS] All attempts failed – returning 0,0');
+//     return {
+//       'lat': _locationVM.globalLatitude1.value,
+//       'lng': _locationVM.globalLongitude1.value,
+//     };
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PRIVATE – INTERNET CHECK
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<String> _internetStatus() async {
+//     try {
+//       final res = await http
+//           .head(Uri.parse('https://www.google.com'))
+//           .timeout(const Duration(seconds: 3));
+//       return res.statusCode == 200 ? 'fast' : 'slow';
+//     } on TimeoutException {
+//       return 'slow';
+//     } on SocketException {
+//       return 'none';
+//     } catch (_) {
+//       return 'none';
+//     }
+//   }
+//
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // PRIVATE – TIMER
+//   // ─────────────────────────────────────────────────────────────────────────
+//
+//   Future<void> _restoreClockState() async {
+//     final prefs         = await SharedPreferences.getInstance();
+//     final clockInString = prefs.getString(_keyClockInTime);
+//
+//     if (clockInString != null) {
+//       _clockInTime      = DateTime.parse(clockInString);
+//       isClockedIn.value = true;
+//       _startTimer();
+//       debugPrint('🔄 [VM] Restored clock-in state from: $_clockInTime');
+//     }
+//   }
+//
+//   void _startTimer() {
+//     if (_clockInTime == null) return;
+//     _timer?.cancel();
+//
+//     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+//       final duration = DateTime.now().difference(_clockInTime!);
+//       String two(int n) => n.toString().padLeft(2, '0');
+//       elapsedTime.value =
+//       '${two(duration.inHours)}:${two(duration.inMinutes.remainder(60))}:${two(duration.inSeconds.remainder(60))}';
+//
+//       if (duration.inSeconds % 60 == 0) {
+//         _saveTotalTime(elapsedTime.value);
+//       }
+//     });
+//
+//     debugPrint('✅ [VM] Timer started');
+//   }
+//
+//   void _stopTimer() {
+//     _timer?.cancel();
+//     _timer = null;
+//     debugPrint('🛑 [VM] Timer stopped');
+//   }
+//
+//   Future<void> _saveTotalTime(String time) async {
+//     final prefs = await SharedPreferences.getInstance();
+//     await prefs.setString(_keyTotalTime, time);
+//   }
+// }
+
+//fo posting
 import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:geocoding/geocoding.dart';
-import '../Database/util.dart';
-import '../Models/attendanceOut_model.dart';
-import '../models/attendance_model.dart';
-import '../repositories/attendance_repository.dart';
-import '../repositories/attendance_out_repository.dart';
-import '../ViewModels/location_view_model.dart';
-import '../../constants.dart';
+import 'package:http/http.dart' as http;
+
+import '../Models/attendance_Model.dart';
+import '../Repositories/attendance_repository.dart';
+import 'location_view_model.dart';
 
 class AttendanceViewModel extends GetxController {
-  final AttendanceRepository _attendanceRepo = AttendanceRepository();
-  final AttendanceOutRepository _attendanceOutRepo = AttendanceOutRepository();
+  // ── Dependencies ──────────────────────────────────────────────────────────
+  final AttendanceRepository _repo       = AttendanceRepository();
+  final LocationViewModel    _locationVM = Get.put(LocationViewModel());
 
-  LocationViewModel get _locationVM => Get.find<LocationViewModel>();
-
+  // ── Observables ───────────────────────────────────────────────────────────
   var allAttendance = <AttendanceModel>[].obs;
-  var isClockedIn = false.obs;
-  var isLoading = false.obs;
-  var elapsedTime = '00:00:00'.obs;
-  var currentLat = 0.0.obs;
-  var currentLng = 0.0.obs;
-  var currentAddress = ''.obs;
+  var isClockedIn   = false.obs;
+  var elapsedTime   = '00:00:00'.obs;
+  var isLoading     = false.obs;
 
-  Timer? _timer;
+  // ── Timer state ───────────────────────────────────────────────────────────
   DateTime? _clockInTime;
+  Timer?    _timer;
+
+  // ── Serial counter state ──────────────────────────────────────────────────
+  int    _serialCounter   = 1;
+  String _currentMonth    = DateFormat('MMM').format(DateTime.now());
+
+  // ── SharedPreferences keys ────────────────────────────────────────────────
+  static const String _keyClockInTime   = 'clockInTime';
+  static const String _keyCurrentId     = 'currentAttendanceId';
+  static const String _keyAttendanceId  = 'attendanceId';         // ✅ also written so clock-out can read it
+  static const String _keyTotalTime     = 'totalTime';
+  static const String _keySecondsPassed = 'secondsPassed';
+  static const String _keyIsClockedIn   = 'isClockedIn';
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LIFECYCLE
+  // ─────────────────────────────────────────────────────────────────────────
 
   @override
   void onInit() {
     super.onInit();
-    loadEmployeeData();
     fetchAllAttendance();
-    _loadClockState();
-    _startPeriodicSync();
+    _restoreClockState();
+    _initSerialCounter();
   }
 
   @override
   void onClose() {
-    _timer?.cancel();
+    _stopTimer();
     super.onClose();
   }
 
-  // ─────────────────────────────────────────────
-  // DATA FETCHING
-  // ─────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // PRIVATE – SERIAL COUNTER
+  // ─────────────────────────────────────────────────────────────────────────
 
-  Future<void> fetchAllAttendance() async {
-    final attendance = await _attendanceRepo.getAttendance();
-    allAttendance.value = attendance;
-  }
+  Future<void> _initSerialCounter() async {
+    final prefs        = await SharedPreferences.getInstance();
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final String month = DateFormat('MMM').format(DateTime.now());
+    final String lastDay = prefs.getString('lastAttendanceDay') ?? '';
 
-  // ─────────────────────────────────────────────
-  // CLOCK STATE PERSISTENCE
-  // ─────────────────────────────────────────────
-
-  Future<void> _loadClockState() async {
-    final prefs = await SharedPreferences.getInstance();
-    isClockedIn.value = prefs.getBool(prefIsClockedIn) ?? false;
-
-    if (isClockedIn.value) {
-      final timeStr = prefs.getString(prefClockInTime);
-      if (timeStr != null) {
-        _clockInTime = DateTime.parse(timeStr);
-        _startTimer();
+    if (lastDay != today) {
+      _serialCounter = 1;
+      _currentMonth  = month;
+      await prefs.setInt('attendanceSerialCounter', _serialCounter);
+      await prefs.setString('attendanceCurrentMonth', _currentMonth);
+      await prefs.setString('lastAttendanceDay', today);
+      debugPrint('🔄 [VM] New day — serial counter reset to 1');
+    } else {
+      _serialCounter = prefs.getInt('attendanceSerialCounter') ?? 1;
+      _currentMonth  = prefs.getString('attendanceCurrentMonth') ?? month;
+      if (_currentMonth != month) {
+        _serialCounter = 1;
+        _currentMonth  = month;
       }
+      debugPrint('[VM] Loaded serial counter: $_serialCounter');
     }
   }
 
-  // ─────────────────────────────────────────────
-  // TIMER
-  // ─────────────────────────────────────────────
-
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_clockInTime != null) {
-        final duration = DateTime.now().difference(_clockInTime!);
-        elapsedTime.value = _formatDuration(duration);
-      }
-    });
+  Future<void> _saveSerialCounter() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('attendanceSerialCounter', _serialCounter);
+    await prefs.setString('attendanceCurrentMonth', _currentMonth);
   }
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    return '${twoDigits(duration.inHours)}:${twoDigits(duration.inMinutes.remainder(60))}:${twoDigits(duration.inSeconds.remainder(60))}';
-  }
-
-// ✅ ADD IT HERE — after _formatDuration
-  void stopElapsedTimer() {
-    _timer?.cancel();
-    _timer = null;
-    elapsedTime.value = '00:00:00';
-    _clockInTime = null;
-  }
-  // ─────────────────────────────────────────────
-  // LOCATION
-  // ─────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // PUBLIC – METHODS CALLED FROM timer_card.dart
+  // ─────────────────────────────────────────────────────────────────────────
 
   Future<bool> isLocationAvailable() async {
     try {
       return await Geolocator.isLocationServiceEnabled();
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> updateCachedDistance(double distance) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('cachedDistance', distance);
+    debugPrint('📏 [VM] Cached distance updated: $distance km');
+  }
+
+  Future<void> syncUnposted() async => syncNow();
+
+  Future<void> saveFormAttendanceIn({
+    String empId   = '',
+    String empName = '',
+    String job     = '',
+    String city    = '',
+  }) async {
+    await clockIn(empId: empId, empName: empName, job: job, city: city);
+  }
+
+  void stopElapsedTimer() {
+    _stopTimer();
+    elapsedTime.value = '00:00:00';
+    debugPrint('🛑 [VM] Elapsed timer stopped');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PUBLIC – CLOCK-IN
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> clockIn({
+    String empId   = '',
+    String empName = '',
+    String job     = '',
+    String city    = '',
+  }) async {
+    debugPrint('🎯 [VM] ===== CLOCK-IN STARTED =====');
+
+    // ✅ FIX: If caller didn't pass employee data, fall back to SharedPreferences.
+    // This guarantees emp_id/emp_name/job are never empty regardless of which
+    // call-site invokes clockIn().
+    if (empId.isEmpty || empName.isEmpty || job.isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      // emp_id is stored as int by LoginModels — _safeReadString handles that
+      if (empId.isEmpty)   empId   = _safeReadString(prefs, 'emp_id');
+      // emp_name and job: try the LoginModels key first, then common alternatives
+      if (empName.isEmpty) empName = _safeReadStringFallback(prefs, ['emp_name', 'empName', 'employee_name', 'name', 'userName', 'user_name']);
+      if (job.isEmpty)     job     = _safeReadStringFallback(prefs, ['job', 'designation', 'role', 'emp_job', 'position', 'jobTitle']);
+      if (city.isEmpty)    city    = _safeReadStringFallback(prefs, ['city', 'emp_city', 'location']);
+      debugPrint('👤 [VM] Resolved from prefs — empId=$empId | empName=$empName | job=$job | city=$city');
+    }
+
+    // 1. Guard: already clocked in
+    if (isClockedIn.value) {
+      Get.snackbar('Already Clocked In', 'You are already clocked in',
+          snackPosition: SnackPosition.TOP, backgroundColor: Colors.green);
+      return;
+    }
+
+    // 2. Location service check
+    if (!await _isLocationServiceOn()) {
+      Get.snackbar('Location Required', 'Please turn on device location',
+          backgroundColor: Colors.red);
+      return;
+    }
+
+    // 3. Generate ATD attendance ID
+    await _initSerialCounter();
+    String attendanceId = _buildAttendanceId(empId: empId);
+
+    // 3b. Regenerate if duplicate found
+    if (await _idExistsInDb(attendanceId)) {
+      _serialCounter++;
+      await _saveSerialCounter();
+      attendanceId = _buildAttendanceId(empId: empId);
+      debugPrint('🔄 [VM] Duplicate found — regenerated: $attendanceId');
+    }
+
+    // 4. Mark clocked-in immediately so UI responds fast
+    _clockInTime      = DateTime.now();
+    isClockedIn.value = true;
+    elapsedTime.value = '00:00:00';
+    _startTimer();
+
+    Get.snackbar('Clock-In Successful', 'You are now clocked in',
+        backgroundColor: Colors.green);
+    debugPrint('✅ [VM] Clock-in set. ID: $attendanceId');
+
+    // 5. Background: persist & sync
+    await _handleBackgroundTasks(
+      attendanceId: attendanceId,
+      empId       : empId,
+      empName     : empName,
+      job         : job,
+      city        : city,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PRIVATE – ATD ID BUILDER
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Format: ATD-{empId}-{dd}-{MMM}-{serial}
+  /// Example: ATD-EMP001-11-Mar-001
+  // String _buildAttendanceId({required String empId}) {
+  //   final DateTime now     = DateTime.now();
+  //   final String   day     = DateFormat('dd').format(now);
+  //   final String   month   = DateFormat('MMM').format(now);
+  //   final String   serial  = _serialCounter.toString().padLeft(3, '0');
+  //   final String   empPart = empId.isNotEmpty ? empId : 'EMP';
+  //   final String   id      = 'ATD-$empPart-$day-$month-$serial';
+  //   debugPrint('🆔 [VM] Generated ID: $id');
+  //   return id;
+  // }
+
+  String _buildAttendanceId({required String empId}) {
+    final DateTime now = DateTime.now();
+    final String day = DateFormat('dd').format(now);
+    final String month = DateFormat('MMM').format(now);
+    final String serial = _serialCounter.toString().padLeft(3, '0');
+
+    // Always use 'EMP' as the constant prefix, ignoring the actual empId
+    const String empPart = 'EMP';
+
+    final String id = 'ATD-$empPart-$day-$month-$serial';
+    debugPrint('🆔 [VM] Generated ID: $id');
+    return id;
+  }
+
+
+  Future<bool> _idExistsInDb(String id) async {
+    try {
+      final records = await _repo.getAll();
+      return records.any((r) => r.attendance_in_id == id);
     } catch (e) {
+      debugPrint('❌ [VM] _idExistsInDb error: $e');
       return false;
     }
   }
 
-  // 🚀 OPTIMIZED: Gets location in <3 seconds
-  Future<void> getCurrentLocation() async {
+  // ─────────────────────────────────────────────────────────────────────────
+  // PUBLIC – FETCH / ADD / DELETE
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> fetchAllAttendance() async {
+    final records = await _repo.getAll();
+    allAttendance.value = records;
+  }
+
+  Future<void> addAttendance(AttendanceModel model) async {
+    await _repo.add(model);
+    await fetchAllAttendance();
+  }
+
+  Future<void> deleteAttendance(String id) async {
+    await _repo.delete(id);
+    await fetchAllAttendance();
+  }
+
+  Future<void> syncNow() async {
+    final status = await _internetStatus();
+    if (status != 'none') {
+      debugPrint('🌐 [VM] Manual sync triggered');
+      await _repo.syncUnposted();
+      await fetchAllAttendance();
+    } else {
+      debugPrint('🌐 [VM] No internet – sync skipped');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PUBLIC – CLOCK-IN STATE HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<String?> getCurrentAttendanceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Check all three keys written in _handleBackgroundTasks
+    return prefs.getString(_keyCurrentId)
+        ?? prefs.getString(_keyAttendanceId)
+        ?? prefs.getString('clockInAttendanceId');
+  }
+
+  Future<void> clearClockInState() async {
+    _stopTimer();
+    isClockedIn.value = false;
+    _clockInTime      = null;
+    elapsedTime.value = '00:00:00';
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyClockInTime);
+    await prefs.remove(_keyTotalTime);
+    await prefs.setInt(_keySecondsPassed, 0);
+    await prefs.setBool(_keyIsClockedIn, false);
+
+    // Keep ID reference in usedAttendanceId then clear
+    final currentId = prefs.getString(_keyCurrentId);
+    if (currentId != null) {
+      await prefs.setString('usedAttendanceId', currentId);
+      await prefs.remove(_keyCurrentId);
+    }
+
+    debugPrint('🔄 [VM] Clock-in state cleared');
+  }
+
+  Future<Map<String, dynamic>> getAttendanceStatus() async {
+    final prefs        = await SharedPreferences.getInstance();
+    final currentId    = prefs.getString(_keyCurrentId);
+    final clockInTime  = prefs.getString(_keyClockInTime);
+    final isClockedInS = prefs.getBool(_keyIsClockedIn) ?? false;
+    final allRecords   = await _repo.getAll();
+
+    return {
+      'currentId'   : currentId,
+      'clockInTime' : clockInTime,
+      'isClockedIn' : isClockedInS,
+      'totalRecords': allRecords.length,
+      'idExistsInDB': currentId != null &&
+          allRecords.any((r) => r.attendance_in_id == currentId),
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PUBLIC – DUPLICATE CLEANUP
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<bool> checkForDuplicate(String attendanceId) async {
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
-      }
-      if (permission == LocationPermission.deniedForever) return;
-
-      // Use low accuracy for speed
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-      ).timeout(const Duration(seconds: 3), onTimeout: () {
-        throw TimeoutException('GPS timeout');
-      });
-
-      currentLat.value = position.latitude;
-      currentLng.value = position.longitude;
-
-      try {
-        _locationVM.globalLatitude1.value = position.latitude;
-        _locationVM.globalLongitude1.value = position.longitude;
-      } catch (_) {}
-
-      _reverseGeocodeInBackground(position.latitude, position.longitude);
-
+      final records = await _repo.getAll();
+      return records.any((r) => r.attendance_in_id == attendanceId);
     } catch (e) {
-      debugPrint('❌ [VM] Location error: $e');
-      try {
-        final last = await Geolocator.getLastKnownPosition();
-        if (last != null) {
-          currentLat.value = last.latitude;
-          currentLng.value = last.longitude;
-        }
-      } catch (_) {}
+      debugPrint('❌ [VM] checkForDuplicate error: $e');
+      return false;
     }
   }
 
-  void _reverseGeocodeInBackground(double lat, double lng) {
-    Future.microtask(() async {
-      try {
-        final placemarks = await placemarkFromCoordinates(lat, lng)
-            .timeout(const Duration(seconds: 5));
-        if (placemarks.isNotEmpty) {
-          final place = placemarks.first;
-          final address =
-          '${place.thoroughfare ?? ''} ${place.subLocality ?? ''}, ${place.locality ?? ''}'.trim();
-          currentAddress.value = address;
-          try { _locationVM.shopAddress.value = address; } catch (_) {}
-        }
-      } catch (e) {
-        final fallback = '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
-        currentAddress.value = fallback;
-        try { _locationVM.shopAddress.value = fallback; } catch (_) {}
-      }
-    });
-  }
-
-  // ─────────────────────────────────────────────
-  // 🚀 OPTIMIZED CLOCK-IN - COMPLETES IN <2 SECONDS
-  // ─────────────────────────────────────────────
-
-  Future<void> clockIn() async {
-    if (isClockedIn.value) {
-      Get.snackbar('Already Clocked In', 'You are already clocked in',
-          backgroundColor: Colors.orange, colorText: Colors.white);
-      return;
-    }
-
-    isLoading.value = true;
-
+  Future<void> cleanDuplicateRecords() async {
     try {
-      await getCurrentLocation();
+      final allRecords = await _repo.getAll();
+      final seen       = <String>{};
+      final toDelete   = <String>[];
 
-      final attendanceId = await _attendanceRepo.generateAttendanceId();
+      for (final r in allRecords) {
+        final id = r.attendance_in_id?.toString() ?? '';
+        if (id.isEmpty) continue;
+        if (seen.contains(id)) {
+          toDelete.add(id);
+        } else {
+          seen.add(id);
+        }
+      }
 
-      final attendance = AttendanceModel(
-        attendance_in_id: attendanceId,
-        emp_id: emp_id,
-        lat_in: currentLat.value,
-        lng_in: currentLng.value,
-        booker_name: emp_name,
-        designation: emp_job,
-        city: emp_city,
-        address: currentAddress.value,
-        attendance_in_date: DateTime.now(),
-        attendance_in_time: DateTime.now(),
-        posted: 0,
+      for (final id in toDelete) {
+        await _repo.delete(id);
+        debugPrint('🗑️ [VM] Removed duplicate: $id');
+      }
+
+      if (toDelete.isNotEmpty) {
+        debugPrint('✅ [VM] Cleaned ${toDelete.length} duplicates');
+        await fetchAllAttendance();
+      } else {
+        debugPrint('✅ [VM] No duplicates found');
+      }
+    } catch (e) {
+      debugPrint('❌ [VM] cleanDuplicateRecords error: $e');
+    }
+  }
+
+  Future<void> forceCleanup() async {
+    debugPrint('🧹 [VM] Force cleanup started...');
+    await cleanDuplicateRecords();
+
+    final prefs        = await SharedPreferences.getInstance();
+    final isClockedInS = prefs.getBool(_keyIsClockedIn) ?? false;
+    final clockInTime  = prefs.getString(_keyClockInTime);
+
+    if (isClockedInS && clockInTime == null) {
+      debugPrint('⚠️ [VM] Inconsistent state – resetting');
+      await prefs.setBool(_keyIsClockedIn, false);
+    }
+
+    final allRecords = await _repo.getAll();
+    final currentId  = prefs.getString(_keyCurrentId);
+    if (currentId != null &&
+        !allRecords.any((r) => r.attendance_in_id == currentId)) {
+      debugPrint('⚠️ [VM] Orphaned currentId removed: $currentId');
+      await prefs.remove(_keyCurrentId);
+    }
+
+    debugPrint('✅ [VM] Force cleanup done');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PRIVATE – BACKGROUND TASKS AFTER CLOCK-IN
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> _handleBackgroundTasks({
+    required String attendanceId,
+    required String empId,
+    required String empName,
+    required String job,
+    required String city,
+  }) async {
+    debugPrint('🛰 [VM] Background tasks started...');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // A. Persist clock-in time + ID to ALL three keys (clock-out reads any of them)
+      await prefs.setString(_keyClockInTime, _clockInTime!.toIso8601String());
+      await prefs.setString(_keyCurrentId, attendanceId);
+      await prefs.setString(_keyAttendanceId, attendanceId);        // ✅ primary key for clock-out
+      await prefs.setString('clockInAttendanceId', attendanceId);   // ✅ extra backup
+      await prefs.setBool(_keyIsClockedIn, true);
+      await prefs.setInt(_keySecondsPassed, 0);
+      await prefs.remove(_keyTotalTime);
+
+      // B. Get GPS
+      final gps     = await _getValidGPS();
+      final lat     = gps['lat']!;
+      final lng     = gps['lng']!;
+      final address = _locationVM.shopAddress.value;
+      debugPrint('📍 [VM] GPS: lat=$lat, lng=$lng');
+
+      // C. Capture exact clock-in datetime
+      final DateTime clockInNow = _clockInTime ?? DateTime.now();
+
+      // D. Save to local DB — original field names preserved
+      final model = AttendanceModel(
+        attendance_in_id  : attendanceId,
+        emp_id            : empId,
+        emp_name          : empName,
+        job               : job,
+        lat_in            : lat.toString(),
+        lng_in            : lng.toString(),
+        city              : city,
+        address           : address,
+        attendance_in_date: clockInNow,   // ✅ real clock-in date (not DateTime.now() at save time)
+        attendance_in_time: clockInNow,   // ✅ real clock-in time
+        posted            : 0,
       );
+      await addAttendance(model);
+      debugPrint('✅ [VM] Saved to local DB: $attendanceId | empId=$empId | empName=$empName | job=$job | time=${DateFormat('hh:mm:ss a').format(clockInNow)}');
 
-      await _attendanceRepo.addAttendance(attendance);
+      // E. Increment serial for next clock-in
+      _serialCounter++;
+      await _saveSerialCounter();
 
-      _clockInTime = DateTime.now();
+      // F. Try server sync
+      final status = await _internetStatus()
+          .timeout(const Duration(seconds: 3), onTimeout: () => 'none');
+
+      if (status != 'none') {
+        debugPrint('🌐 [VM] Syncing to server...');
+        await _repo.syncUnposted();
+        await fetchAllAttendance();
+        debugPrint('✅ [VM] Server sync complete');
+      } else {
+        debugPrint('🌐 [VM] No internet – will sync later');
+      }
+    } catch (e) {
+      debugPrint('⚠️ [VM] Background tasks error: $e');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PRIVATE – GPS HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<bool> _isLocationServiceOn() async {
+    try {
+      return await Geolocator.isLocationServiceEnabled();
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<Map<String, double>> _getValidGPS() async {
+    // 1st: fresh position
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      if (pos.latitude != 0.0 || pos.longitude != 0.0) {
+        debugPrint('✅ [GPS] Fresh: ${pos.latitude}, ${pos.longitude}');
+        return {'lat': pos.latitude, 'lng': pos.longitude};
+      }
+    } catch (e) {
+      debugPrint('⚠️ [GPS] getCurrentPosition failed: $e');
+    }
+
+    // 2nd: wait for LocationViewModel (max 5 s)
+    for (int i = 0; i < 10; i++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      final lat = _locationVM.globalLatitude1.value;
+      final lng = _locationVM.globalLongitude1.value;
+      if (lat != 0.0 || lng != 0.0) {
+        debugPrint('✅ [GPS] From LocationViewModel: $lat, $lng');
+        return {'lat': lat, 'lng': lng};
+      }
+    }
+
+    // 3rd: last known
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null && (last.latitude != 0.0 || last.longitude != 0.0)) {
+        debugPrint('✅ [GPS] Last known: ${last.latitude}, ${last.longitude}');
+        return {'lat': last.latitude, 'lng': last.longitude};
+      }
+    } catch (e) {
+      debugPrint('⚠️ [GPS] getLastKnownPosition failed: $e');
+    }
+
+    // Fallback
+    debugPrint('⚠️ [GPS] All attempts failed – returning 0,0');
+    return {
+      'lat': _locationVM.globalLatitude1.value,
+      'lng': _locationVM.globalLongitude1.value,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PRIVATE – INTERNET CHECK
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<String> _internetStatus() async {
+    try {
+      final res = await http
+          .head(Uri.parse('https://www.google.com'))
+          .timeout(const Duration(seconds: 3));
+      return res.statusCode == 200 ? 'fast' : 'slow';
+    } on TimeoutException {
+      return 'slow';
+    } on SocketException {
+      return 'none';
+    } catch (_) {
+      return 'none';
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PRIVATE – TIMER
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> _restoreClockState() async {
+    final prefs         = await SharedPreferences.getInstance();
+    final clockInString = prefs.getString(_keyClockInTime);
+
+    if (clockInString != null) {
+      _clockInTime      = DateTime.parse(clockInString);
       isClockedIn.value = true;
       _startTimer();
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(prefIsClockedIn, true);
-      await prefs.setString(prefClockInTime, _clockInTime!.toIso8601String());
-      await prefs.setString(prefAttendanceId, attendanceId);
-      await prefs.setInt(prefSecondsPassed, 0);
-
-      try {
-        _locationVM.saveClockStatus(true);
-        _locationVM.startTimer();
-      } catch (_) {}
-
-      _postInBackground(attendance);
-
-      Get.snackbar('✅ Clocked In', 'GPS tracking started',
-          backgroundColor: Colors.green, colorText: Colors.white,
-          duration: const Duration(seconds: 1));
-
-      fetchAllAttendance();
-    } catch (e) {
-      debugPrint('❌ [VM] Clock in error: $e');
-      Get.snackbar('Error', 'Failed to clock in',
-          backgroundColor: Colors.red, colorText: Colors.white);
-    } finally {
-      isLoading.value = false;
+      debugPrint('🔄 [VM] Restored clock-in state from: $_clockInTime');
     }
   }
 
-  void _postInBackground(AttendanceModel attendance) {
-    Future.microtask(() async {
-      try {
-        if (await isNetworkAvailable()) {
-          await _attendanceRepo.postToAPI(attendance);
-        }
-      } catch (e) {
-        debugPrint('⚠️ [VM] Background post error: $e');
+  void _startTimer() {
+    if (_clockInTime == null) return;
+    _timer?.cancel();
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      final duration = DateTime.now().difference(_clockInTime!);
+      String two(int n) => n.toString().padLeft(2, '0');
+      elapsedTime.value =
+      '${two(duration.inHours)}:${two(duration.inMinutes.remainder(60))}:${two(duration.inSeconds.remainder(60))}';
+
+      if (duration.inSeconds % 60 == 0) {
+        _saveTotalTime(elapsedTime.value);
       }
     });
+
+    debugPrint('✅ [VM] Timer started');
   }
 
-  void _postOutInBackground(AttendanceOutModel attendanceOut) {
-    Future.microtask(() async {
-      try {
-        if (await isNetworkAvailable()) {
-          await _attendanceOutRepo.postToAPI(attendanceOut);
-        }
-      } catch (e) {
-        debugPrint('⚠️ [VM] Background post-out error: $e');
-      }
-    });
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+    debugPrint('🛑 [VM] Timer stopped');
   }
 
-  // ─────────────────────────────────────────────
-  // 🚀 OPTIMIZED CLOCK-OUT - COMPLETES IN <2 SECONDS
-  // ─────────────────────────────────────────────
+  // ── Safe Prefs Readers ───────────────────────────────────────────────────
 
-  Future<void> clockOut() async {
-    if (!isClockedIn.value) {
-      Get.snackbar('Not Clocked In', 'Please clock in first',
-          backgroundColor: Colors.orange, colorText: Colors.white);
-      return;
-    }
-
-    final confirm = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('Clock Out'),
-        content: const Text('Are you sure you want to clock out?'),
-        actions: [
-          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Get.back(result: true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Clock Out'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    isLoading.value = true;
-
+  /// Read one key regardless of stored type (int, String, double, bool).
+  String _safeReadString(SharedPreferences prefs, String key) {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final attendanceId = prefs.getString(prefAttendanceId) ??
-          await _attendanceRepo.generateAttendanceId();
-      final clockOutTime = DateTime.now();
-
-      String totalTime = '00:00:00';
-      try {
-        totalTime = await _locationVM.stopTimer();
-      } catch (_) {
-        if (_clockInTime != null) {
-          totalTime = _formatDuration(clockOutTime.difference(_clockInTime!));
-        }
-      }
-
-      double distanceKm = _currentCachedDistance;
-      try {
-        distanceKm = await _locationVM.getImmediateDistance()
-            .timeout(const Duration(seconds: 1), onTimeout: () => _currentCachedDistance);
-      } catch (_) {}
-
-      final String totalDistance = distanceKm.toStringAsFixed(3);
-
-      await prefs.setString(prefTotalDistance, totalDistance);
-      await prefs.setDouble('fullClockOutDistance', distanceKm);
-      await prefs.setString('fullClockOutTime', clockOutTime.toIso8601String());
-
-      double outLat = currentLat.value;
-      double outLng = currentLng.value;
-      String outAddress = currentAddress.value;
-
-      try {
-        if (_locationVM.globalLatitude1.value != 0.0) {
-          outLat = _locationVM.globalLatitude1.value;
-          outLng = _locationVM.globalLongitude1.value;
-          await prefs.setDouble('pendingLatOut', outLat);
-          await prefs.setDouble('pendingLngOut', outLng);
-        }
-        if (_locationVM.shopAddress.value.isNotEmpty) {
-          outAddress = _locationVM.shopAddress.value;
-          await prefs.setString('pendingAddress', outAddress);
-        }
-      } catch (_) {}
-
-      final attendanceOut = AttendanceOutModel(
-        attendance_out_id: attendanceId,
-        emp_id: emp_id,
-        total_time: totalTime,
-        lat_out: outLat,
-        lng_out: outLng,
-        total_distance: totalDistance,
-        address: outAddress,
-        attendance_out_date: clockOutTime,
-        attendance_out_time: clockOutTime,
-        reason: 'manual',
-        posted: 0,
-      );
-
-      await _attendanceOutRepo.addAttendanceOut(attendanceOut);
-
-      try { _locationVM.saveClockStatus(false); } catch (_) {}
-
-      isClockedIn.value = false;
-      _timer?.cancel();
-      elapsedTime.value = '00:00:00';
-      _clockInTime = null;
-
-      await prefs.remove(prefIsClockedIn);
-      await prefs.remove(prefClockInTime);
-      await prefs.remove(prefAttendanceId);
-      await prefs.remove(prefTotalDistance);
-      await prefs.setInt(prefSecondsPassed, 0);
-
-      _postOutInBackground(attendanceOut);
-      _schedulePostClockOutOperations(clockOutTime, distanceKm);
-
-      Get.snackbar(
-        '✅ Clock Out Complete',
-        'Time: $totalTime',
-        backgroundColor: Colors.blue,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-
-      fetchAllAttendance();
-    } catch (e) {
-      debugPrint('❌ [VM] Clock out error: $e');
-      Get.snackbar('Error', 'Failed to clock out',
-          backgroundColor: Colors.red, colorText: Colors.white);
-    } finally {
-      isLoading.value = false;
+      final dynamic raw = prefs.get(key);
+      if (raw == null) return '';
+      return raw.toString();
+    } catch (_) {
+      return '';
     }
   }
 
-  double _currentCachedDistance = 0.0;
-  void updateCachedDistance(double d) => _currentCachedDistance = d;
-
-  void _schedulePostClockOutOperations(DateTime clockOutTime, double distance) {
-    Timer(const Duration(seconds: 5), () async {
+  /// Try each key in [keys] in order; return the first non-empty value.
+  /// Handles mismatches between login key names and attendance key names.
+  String _safeReadStringFallback(SharedPreferences prefs, List<String> keys) {
+    for (final key in keys) {
       try {
-        debugPrint('🔄 [VM] Post-clockout: consolidating GPX...');
-        await _locationVM.consolidateDailyGPXDataForDate(clockOutTime);
-        await _locationVM.saveLocationFromConsolidatedFileForDate(clockOutTime);
-      } catch (e) {
-        debugPrint('❌ [VM] Post-clockout background error: $e');
-      }
-    });
+        final dynamic raw = prefs.get(key);
+        if (raw != null) {
+          final String val = raw.toString().trim();
+          if (val.isNotEmpty) {
+            debugPrint('   ✅ [VM PREFS] "$key" = "$val"');
+            return val;
+          }
+        }
+      } catch (_) {}
+    }
+    debugPrint('   ⚠️ [VM PREFS] None found in: $keys');
+    return '';
   }
 
-  // ─────────────────────────────────────────────
-  // SYNC
-  // ─────────────────────────────────────────────
-
-  Future<void> syncUnposted() async {
-    await _attendanceRepo.syncUnposted();
-    await _attendanceOutRepo.syncUnposted();
-    fetchAllAttendance();
-  }
-
-  void _startPeriodicSync() {
-    Timer.periodic(const Duration(minutes: 5), (timer) async {
-      if (await isNetworkAvailable()) {
-        await _attendanceRepo.syncUnposted();
-        await _attendanceOutRepo.syncUnposted();
-      }
-    });
+  Future<void> _saveTotalTime(String time) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyTotalTime, time);
   }
 }

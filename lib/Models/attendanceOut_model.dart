@@ -1,15 +1,18 @@
-//  import 'package:intl/intl.dart';
+// import 'package:intl/intl.dart';
 //
 // class AttendanceOutModel {
 //   dynamic attendance_out_id;
 //   String? emp_id;
+//
 //   dynamic total_time;
 //   dynamic lat_out;
 //   dynamic lng_out;
 //   dynamic total_distance;
 //   dynamic address;
+//
 //   dynamic attendance_out_date;
 //   dynamic attendance_out_time;
+//
 //   int posted;
 //   String? reason;
 //
@@ -27,7 +30,7 @@
 //     this.reason,
 //   });
 //
-//   factory AttendanceOutModel.fromMap(Map<String, dynamic> json) {
+//   factory AttendanceOutModel.fromMap(Map<dynamic, dynamic> json) {
 //     return AttendanceOutModel(
 //       attendance_out_id: json['attendance_out_id'],
 //       emp_id: json['emp_id'],
@@ -44,24 +47,31 @@
 //   }
 //
 //   Map<String, dynamic> toMap() {
-//     // Determine date string
+//
 //     String dateString;
 //     if (attendance_out_date is DateTime) {
-//       dateString = DateFormat('dd-MMM-yyyy').format(attendance_out_date);
-//     } else if (attendance_out_date is String) {
+//       dateString =
+//           DateFormat('dd-MMM-yyyy').format(attendance_out_date as DateTime);
+//     } else if (attendance_out_date is String &&
+//         (attendance_out_date as String).isNotEmpty) {
 //       dateString = attendance_out_date;
 //     } else {
-//       dateString = DateFormat('dd-MMM-yyyy').format(DateTime.now());
+//       assert(false,
+//       '⚠️ [MODEL] attendance_out_date is null/empty — check where model is created');
+//       dateString = '';
 //     }
 //
-//     // Determine time string
 //     String timeString;
 //     if (attendance_out_time is DateTime) {
-//       timeString = DateFormat('HH:mm:ss').format(attendance_out_time);
-//     } else if (attendance_out_time is String) {
+//       timeString =
+//           DateFormat('HH:mm:ss').format(attendance_out_time as DateTime);
+//     } else if (attendance_out_time is String &&
+//         (attendance_out_time as String).isNotEmpty) {
 //       timeString = attendance_out_time;
 //     } else {
-//       timeString = DateFormat('HH:mm:ss').format(DateTime.now());
+//       assert(false,
+//       '⚠️ [MODEL] attendance_out_time is null/empty — check where model is created');
+//       timeString = '';
 //     }
 //
 //     return {
@@ -78,37 +88,23 @@
 //       'reason': reason ?? 'manual',
 //     };
 //   }
-//
-//   // For API posting
-//   Map<String, dynamic> toJson() {
-//     return {
-//       'attendance_out_id': attendance_out_id,
-//       'emp_id': emp_id,
-//       'total_time': total_time,
-//       'lat_out': lat_out,
-//       'lng_out': lng_out,
-//       'total_distance': total_distance,
-//       'address': address,
-//       'attendance_out_date': attendance_out_date,
-//       'attendance_out_time': attendance_out_time,
-//       'reason': reason ?? 'manual',
-//     };
-//   }
 // }
-
 
 import 'package:intl/intl.dart';
 
 class AttendanceOutModel {
   dynamic attendance_out_id;
-  String? emp_id;        // internally emp_id; sent to server as user_id
+  String? emp_id;
+
   dynamic total_time;
   dynamic lat_out;
   dynamic lng_out;
   dynamic total_distance;
   dynamic address;
+
   dynamic attendance_out_date;
   dynamic attendance_out_time;
+
   int posted;
   String? reason;
 
@@ -126,11 +122,10 @@ class AttendanceOutModel {
     this.reason,
   });
 
-  // ── Read from DB (DB column is user_id) ──────────────────────────────────
-  factory AttendanceOutModel.fromMap(Map<String, dynamic> json) {
+  factory AttendanceOutModel.fromMap(Map<dynamic, dynamic> json) {
     return AttendanceOutModel(
       attendance_out_id: json['attendance_out_id'],
-      emp_id: json['user_id'],          // ✅ DB stores it as user_id
+      emp_id: json['emp_id'],
       total_time: json['total_time'],
       lat_out: json['lat_out'],
       lng_out: json['lng_out'],
@@ -143,29 +138,52 @@ class AttendanceOutModel {
     );
   }
 
-  // ── Write to local DB ─────────────────────────────────────────────────────
   Map<String, dynamic> toMap() {
+
     String dateString;
     if (attendance_out_date is DateTime) {
-      dateString = DateFormat('dd-MMM-yyyy').format(attendance_out_date);
-    } else if (attendance_out_date is String) {
-      dateString = attendance_out_date;
+      dateString =
+          DateFormat('dd-MMM-yyyy').format(attendance_out_date as DateTime);
+    } else if (attendance_out_date is String &&
+        (attendance_out_date as String).isNotEmpty) {
+      // Re-parse ISO 8601 strings (e.g. from backup/fast-data restore)
+      // and reformat to Oracle-expected format. If already formatted
+      // (e.g. "11-Mar-2026"), DateTime.parse throws and we keep it as-is.
+      try {
+        final parsed = DateTime.parse(attendance_out_date as String);
+        dateString = DateFormat('dd-MMM-yyyy').format(parsed);
+      } catch (_) {
+        dateString = attendance_out_date as String;
+      }
     } else {
-      dateString = DateFormat('dd-MMM-yyyy').format(DateTime.now());
+      assert(false,
+      '⚠️ [MODEL] attendance_out_date is null/empty — check where model is created');
+      dateString = '';
     }
 
     String timeString;
     if (attendance_out_time is DateTime) {
-      timeString = DateFormat('HH:mm:ss').format(attendance_out_time);
-    } else if (attendance_out_time is String) {
-      timeString = attendance_out_time;
+      timeString =
+          DateFormat('HH:mm:ss').format(attendance_out_time as DateTime);
+    } else if (attendance_out_time is String &&
+        (attendance_out_time as String).isNotEmpty) {
+      // Re-parse ISO 8601 strings (e.g. "2026-03-11T14:32:00.000")
+      // and reformat to HH:mm:ss. If already formatted, keep as-is.
+      try {
+        final parsed = DateTime.parse(attendance_out_time as String);
+        timeString = DateFormat('HH:mm:ss').format(parsed);
+      } catch (_) {
+        timeString = attendance_out_time as String;
+      }
     } else {
-      timeString = DateFormat('HH:mm:ss').format(DateTime.now());
+      assert(false,
+      '⚠️ [MODEL] attendance_out_time is null/empty — check where model is created');
+      timeString = '';
     }
 
     return {
       'attendance_out_id': attendance_out_id,
-      'user_id': emp_id,               // ✅ DB column is user_id
+      'emp_id': emp_id,
       'total_time': total_time,
       'lat_out': lat_out,
       'lng_out': lng_out,
@@ -174,40 +192,6 @@ class AttendanceOutModel {
       'attendance_out_time': timeString,
       'address': address,
       'posted': posted,
-      'reason': reason ?? 'manual',
-    };
-  }
-
-  // ── POST to server API ────────────────────────────────────────────────────
-  // ✅ Server expects user_id = employee ID
-  // ✅ DateTime fields formatted as strings
-  Map<String, dynamic> toJson() {
-    String dateString;
-    if (attendance_out_date is DateTime) {
-      dateString = DateFormat('dd-MMM-yyyy').format(attendance_out_date);
-    } else {
-      dateString = attendance_out_date?.toString() ??
-          DateFormat('dd-MMM-yyyy').format(DateTime.now());
-    }
-
-    String timeString;
-    if (attendance_out_time is DateTime) {
-      timeString = DateFormat('HH:mm:ss').format(attendance_out_time);
-    } else {
-      timeString = attendance_out_time?.toString() ??
-          DateFormat('HH:mm:ss').format(DateTime.now());
-    }
-
-    return {
-      'attendance_out_id': attendance_out_id,
-      'user_id': emp_id,               // ✅ server column = user_id
-      'total_time': total_time,
-      'lat_out': lat_out,
-      'lng_out': lng_out,
-      'total_distance': total_distance,
-      'address': address,
-      'attendance_out_date': dateString, // ✅ formatted string
-      'attendance_out_time': timeString, // ✅ formatted string
       'reason': reason ?? 'manual',
     };
   }

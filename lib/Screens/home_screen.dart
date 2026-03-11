@@ -1,18 +1,16 @@
-
-import 'package:auto_route/annotations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+
 import '../ViewModels/attendance_out_view_model.dart';
 import '../ViewModels/attendance_view_model.dart';
-
 import '../ViewModels/location_view_model.dart';
 import 'HomeScreenComponents/navbar.dart';
 import 'HomeScreenComponents/profile_section.dart';
 import 'HomeScreenComponents/timer_card.dart' hide LocationViewModel;
-import 'package:lucide_icons/lucide_icons.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,164 +20,450 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  // ViewModels
-  late final attendanceViewModel = Get.put(AttendanceViewModel());
-  late final attendanceOutViewModel = Get.put(AttendanceOutViewModel());
 
-  final LocationViewModel locationVM = Get.put(LocationViewModel());
+  // ── Design tokens ──────────────────────────────────────────────────────────
+  static const Color _primary     = Color(0xFF1A2B6D);
+  static const Color _accent      = Color(0xFF4060FF);
+  static const Color _accentLight = Color(0xFFEEF1FF);
+  static const Color _surface     = Color(0xFFF5F7FF);
+  static const Color _cardBg      = Colors.white;
+  static const Color _green       = Color(0xFF22C55E);
+  static const Color _red         = Color(0xFFEF4444);
 
-  String user_id = '';
-  String userName = '';
+  // ── ViewModels — registered HERE so Get.find() in TimerCard always works ──
+  final LocationViewModel      locationVM             = Get.put(LocationViewModel());
+  final AttendanceViewModel    attendanceViewModel    = Get.put(AttendanceViewModel());
+  final AttendanceOutViewModel attendanceOutViewModel = Get.put(AttendanceOutViewModel());
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  String _empName = '';
+  String _empId   = '';
+  String _empRole = '';
+
+  late final AnimationController _fadeCtrl;
+  late final Animation<double>    _fadeAnim;
 
   @override
   void initState() {
     super.initState();
 
+    _fadeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 500));
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
 
-    _retrieveSavedValues();
-
-    attendanceViewModel.fetchAllAttendance(); // → Attendance IN
-    attendanceOutViewModel.fetchAllAttendanceOut(); // (optional OUT)
+    _loadUserData();
 
     FlutterForegroundTask.startService(
-      notificationTitle: 'Clock Running',
-      notificationText: 'Tracking time and location...',
+      notificationTitle: 'Shift Active',
+      notificationText:  'GPS & time tracking running…',
       callback: startCallback,
     );
   }
 
-  Future<void> _retrieveSavedValues() async {
+  @override
+  void dispose() {
+    _fadeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-
     setState(() {
-      user_id = prefs.getString('userId') ?? '';
-      userName = prefs.getString('userName') ?? '';
+      _empName = prefs.getString('userName')    ?? 'Employee';
+      _empId   = prefs.getString('userId')      ?? '--';
+      _empRole = prefs.getString('designation') ?? 'Staff';
     });
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ));
+
     return WillPopScope(
       onWillPop: () async => false,
-      child: SafeArea(
-        child: Scaffold(
-          backgroundColor: Colors.blueGrey.shade50,
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              // Responsive horizontal padding
-              final horizontalPadding =
-              constraints.maxWidth < 400 ? 12.0 : 20.0;
-              final spacingBetweenRows =
-              constraints.maxWidth < 400 ? 12.0 : 15.0;
-
-              return SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildHeader(),
+      child: Scaffold(
+        backgroundColor: _surface,
+        body: FadeTransition(
+          opacity: _fadeAnim,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _buildHeader()),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 22, 18, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
                     const SizedBox(height: 10),
-                    Padding(
-                      padding:
-                      EdgeInsets.symmetric(horizontal: horizontalPadding),
-                      child: TimerCard(),
-                    ),
-                  ],
+                    TimerCard(),
+                  ]),
                 ),
-              );
-            },
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  // ─── HEADER ────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Colors.white,
-            Colors.blueGrey.shade500,
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          colors: [Colors.white, Color(0xFF3A54CC)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
+        borderRadius: BorderRadius.only(
+          bottomLeft:  Radius.circular(36),
+          bottomRight: Radius.circular(36),
         ),
       ),
       child: Stack(
         children: [
-          Positioned(
-            top: -100,
-            right: -50,
-            child: Transform.rotate(
-              angle: -0.2,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(80),
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.blueGrey.withOpacity(0.4),
-                      Colors.blueGrey.withOpacity(0.1),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-              ),
+          // decorative circles
+          Positioned(top: -60, right: -40,
+              child: _decorCircle(220, 0.06)),
+          Positioned(bottom: -30, left: -20,
+              child: _decorCircle(140, 0.04)),
+
+          SafeArea(
+            child: Column(
+              children: [
+                Navbar(),
+                const SizedBox(height: 4),
+                const ProfileSection(),
+                const SizedBox(height: 8),
+              ],
             ),
-          ),
-          Column(
-            children: [
-              Navbar(),
-              const SizedBox(height: 20),
-              const ProfileSection(),
-            ],
           ),
         ],
       ),
     );
   }
 
-  // Widget _buildFooter() {
-  //   return Column(
-  //     children: [
-  //       Text(
-  //         "$version",
-  //         style: const TextStyle(
-  //           // fontSize: fontSize - 1,
-  //           color: Colors.black54,
-  //           fontWeight: FontWeight.w500,
-  //           fontStyle: FontStyle.italic,
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
+  Widget _decorCircle(double size, double opacity) => Container(
+    width: size, height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.white.withOpacity(opacity),
+    ),
+  );
 
+  Widget _chip(IconData icon, String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: Colors.white70),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500)),
+      ],
+    ),
+  );
+
+  // ─── SECTION LABEL ─────────────────────────────────────────────────────────
+  Widget _sectionLabel(String text) => Row(
+    children: [
+      Container(
+        width: 4, height: 18,
+        decoration: BoxDecoration(
+            color: _accent, borderRadius: BorderRadius.circular(2)),
+      ),
+      const SizedBox(width: 8),
+      Text(text,
+          style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: _primary,
+              letterSpacing: 0.4)),
+    ],
+  );
+
+  // ─── STATS ROW ─────────────────────────────────────────────────────────────
+  Widget _buildStatsRow() {
+    return Obx(() {
+      final inCount     = attendanceViewModel.allAttendance.length;
+      final outCount    = attendanceOutViewModel.allAttendanceOut.length;
+      final isClockedIn = attendanceViewModel.isClockedIn.value;
+      final elapsed     = attendanceViewModel.elapsedTime.value;
+
+      return Row(
+        children: [
+          _statCard(LucideIcons.logIn,  'Clock-Ins',  '$inCount',  _green),
+          const SizedBox(width: 10),
+          _statCard(LucideIcons.logOut, 'Clock-Outs', '$outCount', _red),
+          const SizedBox(width: 10),
+          _statCard(LucideIcons.timer,  'Shift Time',
+              isClockedIn ? elapsed : '--:--', _accent),
+        ],
+      );
+    });
+  }
+
+  Widget _statCard(IconData icon, String label, String value, Color color) =>
+      Expanded(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+          decoration: BoxDecoration(
+            color: _cardBg,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.10),
+                blurRadius: 12, offset: const Offset(0, 4))],
+            border: Border.all(color: color.withOpacity(0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, size: 18, color: color),
+              ),
+              const SizedBox(height: 10),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                      letterSpacing: 0.5)),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ),
+      );
+
+  // ─── SYNC CARD ─────────────────────────────────────────────────────────────
+  Widget _buildSyncCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+            blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                    color: _accentLight,
+                    borderRadius: BorderRadius.circular(12)),
+                child: const Icon(LucideIcons.refreshCw,
+                    size: 20, color: _accent),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Data Sync',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _primary)),
+                    SizedBox(height: 2),
+                    Text('Records sync automatically when online',
+                        style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () async {
+                  await attendanceViewModel.syncUnposted();
+                  await attendanceOutViewModel.syncUnposted();
+                  Get.snackbar('✅ Synced', 'All records pushed to server',
+                      snackPosition: SnackPosition.TOP,
+                      backgroundColor: _green,
+                      colorText: Colors.white,
+                      duration: const Duration(seconds: 2));
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                      color: _accent,
+                      borderRadius: BorderRadius.circular(10)),
+                  child: const Text('Sync Now',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+
+          Obx(() {
+            final pendIn  = attendanceViewModel.allAttendance
+                .where((r) => r.posted == 0).length;
+            final pendOut = attendanceOutViewModel.allAttendanceOut
+                .where((r) => r.posted == 0).length;
+            return Row(
+              children: [
+                _pendingChip('Pending IN',  pendIn),
+                const SizedBox(width: 10),
+                _pendingChip('Pending OUT', pendOut),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _pendingChip(String label, int count) {
+    final color = count > 0 ? _red : _green;
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Text('$count',
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+            const SizedBox(height: 2),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── LOCATION CARD ─────────────────────────────────────────────────────────
+  Widget _buildLocationCard() {
+    return Obx(() {
+      final lat     = locationVM.globalLatitude1.value;
+      final lng     = locationVM.globalLongitude1.value;
+      final address = locationVM.shopAddress.value;
+      final hasLoc  = lat != 0.0 || lng != 0.0;
+      final color   = hasLoc ? _green : Colors.orange;
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+              blurRadius: 12, offset: const Offset(0, 4))],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12)),
+              child: Icon(LucideIcons.mapPin, size: 22, color: color),
+            ),
+            const SizedBox(width: 14),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasLoc ? 'Location Active' : 'Waiting for GPS…',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: color),
+                  ),
+                  const SizedBox(height: 4),
+                  if (hasLoc) ...[
+                    Text(
+                      address.isNotEmpty ? address : 'Fetching address…',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade400,
+                          fontFeatures: const [FontFeature.tabularFigures()]),
+                    ),
+                  ] else
+                    const Text(
+                      'Enable location services to track your shift',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+
+            // refresh button
+            GestureDetector(
+              onTap: () => locationVM.saveCurrentLocation(),
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                    color: _accentLight,
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(LucideIcons.refreshCw,
+                    size: 16, color: _accent),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // ─── HELPERS ───────────────────────────────────────────────────────────────
   void _showClockInRequiredDialog() {
     Get.defaultDialog(
-      title: "Clock In Required",
-      titleStyle:
-      const TextStyle(fontWeight: FontWeight.w600, color: Colors.blueGrey),
-      middleText: "Please start your work timer first.",
-      middleTextStyle: TextStyle(color: Colors.blueGrey.shade600),
-      textConfirm: "OK",
+      title: 'Clock In Required',
+      titleStyle: const TextStyle(
+          fontWeight: FontWeight.w700, color: _primary),
+      middleText: 'Please start your shift timer first.',
+      middleTextStyle: TextStyle(color: Colors.grey.shade600),
+      textConfirm: 'OK',
       confirmTextColor: Colors.white,
-      buttonColor: Colors.blueGrey,
-      radius: 12,
+      buttonColor: _accent,
+      radius: 16,
       onConfirm: Get.back,
     );
   }
 }
 
-// Foreground task handler
+// ── Foreground task handler ───────────────────────────────────────────────────
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(MyTaskHandler());
 }

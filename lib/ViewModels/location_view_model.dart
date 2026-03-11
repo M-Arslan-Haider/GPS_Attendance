@@ -1,60 +1,64 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
-import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:gpx/gpx.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:synchronized/synchronized.dart';
-import '../Database/util.dart';
+import 'package:uuid/uuid.dart';
 
 import '../Models/location_model.dart';
 import '../Repositories/location_repository.dart';
-import 'package:geocoding/geocoding.dart';
-import '../Tracker/trac.dart';
 
 class LocationViewModel extends GetxController {
-  var allLocation = <LocationModel>[].obs;
-  LocationRepository locationRepository = LocationRepository();
-  var globalLatitude1 = 0.0.obs;
-  var globalLongitude1 = 0.0.obs;
-  var shopAddress = ''.obs;
+  // ── Dependencies ──────────────────────────────────────────────────────────
+  final LocationRepository _repo = LocationRepository();
 
-  var lastProcessedDate = ''.obs;
+  // ── Observables ───────────────────────────────────────────────────────────
+  var allLocation               = <LocationModel>[].obs;
+  var globalLatitude1           = 0.0.obs;
+  var globalLongitude1          = 0.0.obs;
+  var shopAddress               = ''.obs;
+  var isGPSEnabled              = false.obs;
+  var isClockedIn               = false.obs;
+  var secondsPassed             = 0.obs;
+  var newsecondpassed           = 0.obs;
+  var lastProcessedDate         = ''.obs;
   var isDailyProcessingComplete = false.obs;
 
-  RxInt secondsPassed = 0.obs;
-  Timer? _timer;
-  RxBool isClockedIn = false.obs;
+  // ── Internal state ────────────────────────────────────────────────────────
+  Timer?    _timer;
+  Timer?    _gpxSyncTimer;
+  bool      _isAutoSyncing    = false;
+  bool      _isGpxAutoSyncing = false;
 
-  // 🔥 YAHAN ADD KARO
-  bool _isAutoSyncing = false;
-  bool _isGpxAutoSyncing = false;
-  Timer? _gpxSyncTimer;
-
-  var isGPSEnabled = false.obs;
-  var newsecondpassed = 0.obs;
-  int locationSerialCounter = 1;
-  String locationCurrentMonth = DateFormat('MMM').format(DateTime.now());
-  String currentemp_id = '';
-
-  // ✅ ADDED: File read lock to coordinate with LocationService
+  // File-read lock (coordinates with background LocationService writes)
   final Lock _fileReadLock = Lock();
 
-  // ✅ ADDED: Cache for frequently accessed data
-  double? _cachedDistance;
-  DateTime? _lastDistanceCalculation;
-  static const Duration _distanceCacheValidity = Duration(seconds: 5);
+  // Distance cache (5-second validity)
+  double?   _cachedDistance;
+  DateTime? _lastDistanceCalc;
+  static const Duration _cacheValidity = Duration(seconds: 5);
+
+  // ── SharedPreferences keys ────────────────────────────────────────────────
+  static const String _keyIsClockedIn              = 'isClockedIn';
+  static const String _keySecondsPassed            = 'secondsPassed';
+  static const String _keyTotalTime                = 'totalTime';
+  static const String _keyTotalDistance            = 'totalDistance';
+  static const String _keyLastProcessedDate        = 'lastProcessedDate';
+  static const String _keyIsDailyProcessingComplete= 'isDailyProcessingComplete';
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LIFECYCLE
+  // ─────────────────────────────────────────────────────────────────────────
 
   @override
   void onInit() {
@@ -63,30 +67,29 @@ class LocationViewModel extends GetxController {
     loadClockStatus();
     startTimerIfClockedIn();
     _initializeDailyProcessing();
-    // 🔥 NEW: Auto sync when app opens
-    // 🔥 AUTO SYNC GPX
-    Future.delayed(const Duration(seconds: 3), () {
-      _startGpxAutoSync();
-    });
 
+    // Auto-sync GPX after a short delay to let the app settle
+    Future.delayed(const Duration(seconds: 3), _startGpxAutoSync);
   }
 
   @override
-  void dispose() {
+  void onClose() {
     _timer?.cancel();
-    super.dispose();
+    _gpxSyncTimer?.cancel();
+    super.onClose();
   }
 
-  // ----------------------
-  // Timer Logic
-  // ----------------------
-  void startTimerIfClockedIn() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    isClockedIn.value = prefs.getBool('isClockedIn') ?? false;
+  // ─────────────────────────────────────────────────────────────────────────
+  // TIMER
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> startTimerIfClockedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    isClockedIn.value = prefs.getBool(_keyIsClockedIn) ?? false;
     if (isClockedIn.value) {
-      secondsPassed.value = prefs.getInt('secondsPassed') ?? 0;
+      secondsPassed.value = prefs.getInt(_keySecondsPassed) ?? 0;
       _timer?.cancel();
-      _timer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         secondsPassed.value++;
         _saveSecondsToPrefs(secondsPassed.value);
       });
@@ -95,700 +98,531 @@ class LocationViewModel extends GetxController {
 
   void startTimer() async {
     _timer?.cancel();
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    secondsPassed.value = prefs.getInt('secondsPassed') ?? 0;
-    _timer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
+    final prefs = await SharedPreferences.getInstance();
+    secondsPassed.value = prefs.getInt(_keySecondsPassed) ?? 0;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       secondsPassed.value++;
       _saveSecondsToPrefs(secondsPassed.value);
     });
   }
 
-  void _saveSecondsToPrefs(int seconds) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('secondsPassed', seconds);
-  }
-
   Future<String> stopTimer() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
     _timer?.cancel();
-
-    String totalTime = _formatDuration(secondsPassed.value);
-
-    secondsPassed.value = 0;
-    newsecondpassed.value = 0;
-
-    await prefs.setInt('secondsPassed', 0);
-    await prefs.setString('totalTime', totalTime);
-
+    final prefs        = await SharedPreferences.getInstance();
+    final totalTime    = _formatDuration(secondsPassed.value);
+    secondsPassed.value    = 0;
+    newsecondpassed.value  = 0;
+    await prefs.setInt(_keySecondsPassed, 0);
+    await prefs.setString(_keyTotalTime, totalTime);
     return totalTime;
   }
 
-  String _formatDuration(int seconds) {
-    Duration duration = Duration(seconds: seconds);
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String hours = twoDigits(duration.inHours);
-    String minutes = twoDigits(duration.inMinutes.remainder(60));
-    String secs = twoDigits(duration.inSeconds.remainder(60));
-    return '$hours:$minutes:$secs';
+  void _saveSecondsToPrefs(int seconds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keySecondsPassed, seconds);
   }
 
-  // ----------------------
-  // Daily GPX File Management
-  // ----------------------
+  // ─────────────────────────────────────────────────────────────────────────
+  // CLOCK STATUS
+  // ─────────────────────────────────────────────────────────────────────────
 
-  String getDailyGPXFileName() {
-    final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
-    return 'track$date.gpx';
+  Future<void> loadClockStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    isClockedIn.value = prefs.getBool(_keyIsClockedIn) ?? false;
+    if (!isClockedIn.value) await prefs.setInt(_keySecondsPassed, 0);
   }
 
-  Future<String> getCurrentGPXFilePath() async {
-    final downloadDirectory = await getDownloadsDirectory();
-    return '${downloadDirectory!.path}/${getDailyGPXFileName()}';
+  Future<void> saveClockStatus(bool clockedIn) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyIsClockedIn, clockedIn);
+    isClockedIn.value = clockedIn;
   }
 
-  // ✅ FIXED: With synchronization and caching
-  Future<double> getImmediateDistance() async {
+  Future<void> saveCurrentTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('savedTime', DateFormat('HH:mm:ss').format(DateTime.now()));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LOCATION
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> saveCurrentLocation() async {
+    final permission = await Permission.location.request();
+    if (!permission.isGranted) return;
+
     try {
-      // Return cached value if recent
-      if (_cachedDistance != null &&
-          _lastDistanceCalculation != null &&
-          DateTime.now().difference(_lastDistanceCalculation!) < _distanceCacheValidity) {
-        debugPrint("📏 Returning cached distance: $_cachedDistance km");
-        return _cachedDistance!;
+      final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      globalLatitude1.value  = pos.latitude;
+      globalLongitude1.value = pos.longitude;
+
+      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final addr =
+            '${p.thoroughfare ?? ''} ${p.subLocality ?? ''}, ${p.locality ?? ''} ${p.postalCode ?? ''}, ${p.country ?? ''}';
+        shopAddress.value = addr.trim().isEmpty ? 'Not Verified' : addr;
       }
 
-      final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
-      final downloadDirectory = await getDownloadsDirectory();
-      final filePath = "${downloadDirectory!.path}/track_${emp_id}_$date.gpx";
+      debugPrint('📍 Location: ${pos.latitude}, ${pos.longitude}');
+      debugPrint('🏠 Address: ${shopAddress.value}');
+    } catch (e) {
+      debugPrint('❌ saveCurrentLocation error: $e');
+    }
+  }
 
-      File file = File(filePath);
+  // ─────────────────────────────────────────────────────────────────────────
+  // GPX FILE HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
 
-      // ✅ Use async check instead of sync
-      bool exists = await file.exists();
-      if (!exists) {
+  String _dateStr([DateTime? date]) =>
+      DateFormat('dd-MM-yyyy').format(date ?? DateTime.now());
+
+  Future<String> _gpxFilePath([DateTime? date]) async {
+    final dir = await getDownloadsDirectory();
+    return '${dir!.path}/track${_dateStr(date)}.gpx';
+  }
+
+  Future<String> _userGpxFilePath([DateTime? date]) async {
+    final dir = await getDownloadsDirectory();
+    // File written by background LocationService
+    return '${dir!.path}/track_empId_${_dateStr(date)}.gpx';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DISTANCE CALCULATION
+  // ─────────────────────────────────────────────────────────────────────────
+
+  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2) / 1000.0;
+  }
+
+  Future<double> calculateTotalDistance(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return 0.0;
+
+      final content = await _fileReadLock.synchronized(
+              () => file.readAsString());
+      if (content.isEmpty) return 0.0;
+
+      Gpx gpx;
+      try {
+        gpx = GpxReader().fromString(content);
+      } catch (e) {
+        debugPrint('❌ GPX parse error: $e');
         return 0.0;
       }
 
-      // ✅ CRITICAL: Use lock to prevent reading during write
-      double distance = await _fileReadLock.synchronized(() async {
-        return await calculateTotalDistance(filePath);
-      });
+      double total = 0.0;
+      for (final trk in gpx.trks) {
+        for (final seg in trk.trksegs) {
+          if (seg.trkpts.length < 2) continue;
+          for (int i = 0; i < seg.trkpts.length - 1; i++) {
+            final a = seg.trkpts[i];
+            final b = seg.trkpts[i + 1];
+            if (a.lat == null || a.lon == null || b.lat == null || b.lon == null)
+              continue;
+            total += calculateDistance(a.lat!.toDouble(), a.lon!.toDouble(),
+                b.lat!.toDouble(), b.lon!.toDouble());
+          }
+        }
+      }
 
-      // ✅ Update cache
-      _cachedDistance = distance;
-      _lastDistanceCalculation = DateTime.now();
-
-      return distance;
+      debugPrint('📏 Total distance: ${total.toStringAsFixed(3)} km');
+      return total;
     } catch (e) {
-      debugPrint("❌ Error getting immediate distance: $e");
+      debugPrint('❌ calculateTotalDistance error: $e');
       return 0.0;
     }
   }
 
-  // ✅ FIXED: All async operations, no sync calls
-  Future<Map<String, dynamic>> checkLocationServiceStatus() async {
+  Future<double> getImmediateDistance() async {
+    // Return from cache if recent enough
+    if (_cachedDistance != null &&
+        _lastDistanceCalc != null &&
+        DateTime.now().difference(_lastDistanceCalc!) < _cacheValidity) {
+      return _cachedDistance!;
+    }
+
     try {
-      final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
-      final downloadDirectory = await getDownloadsDirectory();
-      final filePath = "${downloadDirectory!.path}/track_${emp_id}_$date.gpx";
+      final filePath = await _gpxFilePath();
+      if (!await File(filePath).exists()) return 0.0;
 
-      File file = File(filePath);
+      final dist = await _fileReadLock.synchronized(
+              () => calculateTotalDistance(filePath));
 
-      // ✅ Async operations only
-      bool fileExists = await file.exists();
-      int fileSize = fileExists ? await file.length() : 0;
-      int pointCount = 0;
+      _cachedDistance      = dist;
+      _lastDistanceCalc    = DateTime.now();
+      return dist;
+    } catch (e) {
+      debugPrint('❌ getImmediateDistance error: $e');
+      return 0.0;
+    }
+  }
 
-      if (fileExists) {
-        // ✅ Use lock when reading
-        String content = await _fileReadLock.synchronized(() async {
-          return await file.readAsString();
-        });
+  Future<double> calculateShiftDistance(DateTime shiftStart) async {
+    try {
+      final filePath = await _gpxFilePath();
+      final file     = File(filePath);
+      if (!await file.exists()) return 0.0;
 
-        if (content.isNotEmpty) {
-          Gpx gpx = GpxReader().fromString(content);
-          pointCount = _getTotalPoints(gpx);
+      final content = await file.readAsString();
+      if (content.isEmpty) return 0.0;
+
+      final gpx      = GpxReader().fromString(content);
+      double dist    = 0.0;
+
+      for (final trk in gpx.trks) {
+        for (final seg in trk.trksegs) {
+          final pts = seg.trkpts
+              .where((p) => p.time != null && p.time!.isAfter(shiftStart))
+              .toList();
+
+          for (int i = 0; i < pts.length - 1; i++) {
+            dist += calculateDistance(
+              pts[i].lat?.toDouble()     ?? 0.0,
+              pts[i].lon?.toDouble()     ?? 0.0,
+              pts[i + 1].lat?.toDouble() ?? 0.0,
+              pts[i + 1].lon?.toDouble() ?? 0.0,
+            );
+          }
         }
       }
 
-      return {
-        'serviceActive': true,
-        'fileExists': fileExists,
-        'fileSize': fileSize,
-        'pointsRecorded': pointCount,
-        'filePath': filePath,
-      };
+      debugPrint('📍 Shift distance: ${dist.toStringAsFixed(3)} km');
+      return dist;
     } catch (e) {
-      return {
-        'serviceActive': false,
-        'error': e.toString(),
-      };
+      debugPrint('❌ calculateShiftDistance error: $e');
+      return 0.0;
     }
   }
 
-  int _getTotalPoints(Gpx gpx) {
-    int total = 0;
-    for (var track in gpx.trks) {
-      for (var segment in track.trksegs) {
-        total += segment.trkpts.length;
+  Future<double> calculateShiftDistanceFast(DateTime shiftStart) async {
+    try {
+      final filePath = await _gpxFilePath();
+      final file     = File(filePath);
+      if (!await file.exists()) return 0.0;
+
+      final content  = await file.readAsString();
+      if (content.isEmpty) return 0.0;
+
+      final matches  =
+      RegExp(r'lat="([^"]+)" lon="([^"]+)"').allMatches(content).toList();
+      if (matches.length < 2) return 0.0;
+
+      double total  = 0.0;
+      double? pLat, pLon;
+
+      for (final m in matches) {
+        final lat = double.parse(m.group(1)!);
+        final lon = double.parse(m.group(2)!);
+        if (pLat != null && pLon != null) {
+          total += calculateDistance(pLat, pLon, lat, lon);
+        }
+        pLat = lat;
+        pLon = lon;
       }
+
+      return total;
+    } catch (e) {
+      debugPrint('❌ calculateShiftDistanceFast error: $e');
+      return 0.0;
     }
-    return total;
   }
 
-  // ✅ HELPER METHOD: Check if point already exists in list (MOVED HERE to fix error)
-  bool _containsPoint(List<Wpt> points, Wpt newPoint) {
-    for (Wpt point in points) {
-      if (point.lat == newPoint.lat &&
-          point.lon == newPoint.lon &&
-          point.time == newPoint.time) {
-        return true;
-      }
-    }
-    return false;
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // GPX CONSOLIDATION
+  // ─────────────────────────────────────────────────────────────────────────
 
-  // ----------------------
-  // ✅ NEW: Date-specific GPX Methods for Midnight Auto-Clockout Fix
-  // ----------------------
+  Future<void> consolidateDailyGPXData() async =>
+      consolidateDailyGPXDataForDate(DateTime.now());
 
-  // ✅ NEW: Get GPX file path for specific date (not current date)
-  Future<String> getGPXFilePathForDate(DateTime date) async {
-    final dateStr = DateFormat('dd-MM-yyyy').format(date);
-    final downloadDirectory = await getDownloadsDirectory();
-    return "${downloadDirectory!.path}/track_${emp_id}_$dateStr.gpx";
-  }
-
-  // ✅ NEW: Consolidate GPX for specific date (CRITICAL FIX for midnight auto-clockout)
   Future<void> consolidateDailyGPXDataForDate(DateTime eventDate) async {
     try {
-      final dateStr = DateFormat('dd-MM-yyyy').format(eventDate);
-      final downloadDirectory = await getDownloadsDirectory();
-      final dailyGPXFilePath = '${downloadDirectory!.path}/track$dateStr.gpx';
+      final dateStr      = _dateStr(eventDate);
+      final dir          = await getDownloadsDirectory();
+      final dailyPath    = '${dir!.path}/track$dateStr.gpx';
 
-      debugPrint("🔄 [DATE-SPECIFIC] Starting Daily GPX Consolidation for: $dateStr");
-      debugPrint("🔄 [DATE-SPECIFIC] File path: $dailyGPXFilePath");
+      debugPrint('🔄 [GPX] Consolidating for: $dateStr');
 
-      // ✅ Use lock for entire consolidation process
       await _fileReadLock.synchronized(() async {
-        File dailyFile = File(dailyGPXFilePath);
+        final dailyFile = File(dailyPath);
 
         if (!await dailyFile.exists()) {
-          debugPrint("📄 [DATE-SPECIFIC] Daily file doesn't exist, creating new one");
-          String initialGPX = '''<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="OrderBookingApp">
-  <trk>
-    <name>Daily Track $dateStr</name>
-    <trkseg>
-    </trkseg>
-  </trk>
-</gpx>''';
-
-          await dailyFile.writeAsString(initialGPX, flush: true);
+          await dailyFile.writeAsString(
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<gpx version="1.1" creator="EmployeePortal">\n'
+                '  <trk><name>Daily Track $dateStr</name>'
+                '<trkseg></trkseg></trk>\n</gpx>',
+            flush: true,
+          );
         }
 
-        String dailyContent = await dailyFile.readAsString();
-        Gpx dailyGpx = GpxReader().fromString(dailyContent);
-
-        if (dailyGpx.trks.isEmpty) {
-          dailyGpx.trks.add(Trk());
-        }
-        if (dailyGpx.trks.first.trksegs.isEmpty) {
+        final dailyGpx = GpxReader().fromString(await dailyFile.readAsString());
+        if (dailyGpx.trks.isEmpty) dailyGpx.trks.add(Trk());
+        if (dailyGpx.trks.first.trksegs.isEmpty)
           dailyGpx.trks.first.trksegs.add(Trkseg());
-        }
 
-        Trkseg mainSegment = dailyGpx.trks.first.trksegs.first;
-        int initialPoints = mainSegment.trkpts.length;
+        final mainSeg   = dailyGpx.trks.first.trksegs.first;
+        final initCount = mainSeg.trkpts.length;
+        int merged      = 0;
 
-        debugPrint("📊 [DATE-SPECIFIC] Initial points in daily file: $initialPoints");
+        final allFiles = await _findGpxFilesForDate(dir, dateStr);
 
-        List<File> allGPXFiles = await _findAllGPXFilesForDate(downloadDirectory, dateStr);
-        debugPrint("📁 [DATE-SPECIFIC] Found ${allGPXFiles.length} GPX files for date: $dateStr");
-
-        int totalMergedPoints = 0;
-
-        for (File tempFile in allGPXFiles) {
-          if (tempFile.path != dailyGPXFilePath) {
-            try {
-              String tempContent = await tempFile.readAsString();
-              Gpx tempGpx = GpxReader().fromString(tempContent);
-
-              for (var track in tempGpx.trks) {
-                for (var segment in track.trksegs) {
-                  for (var point in segment.trkpts) {
-                    if (!_containsPoint(mainSegment.trkpts, point)) {
-                      mainSegment.trkpts.add(point);
-                      totalMergedPoints++;
-                    }
+        for (final f in allFiles) {
+          if (f.path == dailyPath) continue;
+          try {
+            final tempGpx = GpxReader().fromString(await f.readAsString());
+            for (final trk in tempGpx.trks) {
+              for (final seg in trk.trksegs) {
+                for (final pt in seg.trkpts) {
+                  if (!_containsPoint(mainSeg.trkpts, pt)) {
+                    mainSeg.trkpts.add(pt);
+                    merged++;
                   }
                 }
               }
-
-              debugPrint("✅ [DATE-SPECIFIC] Merged ${tempFile.path}");
-            } catch (e) {
-              debugPrint("⚠️ [DATE-SPECIFIC] Error merging ${tempFile.path}: $e");
             }
+          } catch (e) {
+            debugPrint('⚠️ [GPX] Error merging ${f.path}: $e');
           }
         }
 
-        mainSegment.trkpts.sort((a, b) {
+        mainSeg.trkpts.sort((a, b) {
           if (a.time == null || b.time == null) return 0;
           return a.time!.compareTo(b.time!);
         });
 
-        String consolidatedGPX = GpxWriter().asString(dailyGpx);
-        await dailyFile.writeAsString(consolidatedGPX, flush: true);
+        await dailyFile.writeAsString(GpxWriter().asString(dailyGpx),
+            flush: true);
 
-        debugPrint("🎉 [DATE-SPECIFIC] DAILY CONSOLIDATION COMPLETED for: $dateStr");
-        debugPrint("📈 [DATE-SPECIFIC] Points: $initialPoints → ${mainSegment.trkpts.length}");
-        debugPrint("🔄 [DATE-SPECIFIC] Merged: $totalMergedPoints new points");
+        debugPrint(
+            '🎉 [GPX] Consolidation done: $initCount → ${mainSeg.trkpts.length} pts ($merged merged)');
       });
-
     } catch (e) {
-      debugPrint("❌ [DATE-SPECIFIC] Error in daily consolidation for date: $e");
+      debugPrint('❌ [GPX] consolidateDailyGPXDataForDate error: $e');
     }
   }
 
-  // ✅ NEW: Find all GPX files for specific date
-  Future<List<File>> _findAllGPXFilesForDate(Directory directory, String dateStr) async {
-    List<File> dateFiles = [];
-
+  Future<List<File>> _findGpxFilesForDate(
+      Directory dir, String dateStr) async {
+    final files = <File>[];
     try {
-      List<FileSystemEntity> entities = await directory.list().toList();
-
-      for (FileSystemEntity entity in entities) {
-        if (entity is File && entity.path.endsWith('.gpx')) {
-          String fileName = entity.path.split('/').last;
-
-          // Check if filename contains the specific date
-          if (fileName.contains(dateStr)) {
-            dateFiles.add(entity);
-          }
+      await for (final entity in dir.list()) {
+        if (entity is File &&
+            entity.path.endsWith('.gpx') &&
+            entity.path.split('/').last.contains(dateStr)) {
+          files.add(entity);
         }
       }
     } catch (e) {
-      debugPrint("❌ [DATE-SPECIFIC] Error finding files for date $dateStr: $e");
+      debugPrint('❌ [GPX] _findGpxFilesForDate error: $e');
     }
-
-    return dateFiles;
+    return files;
   }
 
-  // ✅ NEW: Save location data for specific date (CRITICAL FIX for midnight auto-clockout)
-  Future<void> saveLocationFromConsolidatedFileForDate(DateTime eventDate) async {
+  bool _containsPoint(List<Wpt> pts, Wpt p) => pts.any(
+          (e) => e.lat == p.lat && e.lon == p.lon && e.time == p.time);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LOCATION SAVING (to local DB + sync)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> saveLocation() async =>
+      saveLocationFromConsolidatedFileForDate(DateTime.now());
+
+  Future<void> saveLocationFromConsolidatedFile() async =>
+      saveLocationFromConsolidatedFileForDate(DateTime.now());
+
+  Future<void> saveLocationFromConsolidatedFileForDate(
+      DateTime eventDate) async {
     try {
-      final dateStr = DateFormat('dd-MM-yyyy').format(eventDate);
-      final downloadDirectory = await getDownloadsDirectory();
-      final consolidatedGPXFilePath = '${downloadDirectory!.path}/track$dateStr.gpx';
-      final consolidatedFile = File(consolidatedGPXFilePath);
+      final dateStr  = _dateStr(eventDate);
+      final dir      = await getDownloadsDirectory();
+      final filePath = '${dir!.path}/track$dateStr.gpx';
+      final file     = File(filePath);
 
-      debugPrint("💾 [DATE-SPECIFIC] Saving location data for date: $dateStr");
-      debugPrint("💾 [DATE-SPECIFIC] File path: $consolidatedGPXFilePath");
-
-      if (!await consolidatedFile.exists()) {
-        debugPrint('❌ [DATE-SPECIFIC] Consolidated GPX file does not exist: $consolidatedGPXFilePath');
+      if (!await file.exists()) {
+        debugPrint('❌ [LocVM] GPX file not found: $filePath');
         return;
       }
 
-      double totalDistance = await calculateTotalDistance(consolidatedGPXFilePath);
+      final totalDist = await calculateTotalDistance(filePath);
+      final prefs     = await SharedPreferences.getInstance();
+      await prefs.setDouble(_keyTotalDistance, totalDist);
 
-      // ✅ Use lock for reading bytes
-      List<int> gpxBytesList = await _fileReadLock.synchronized(() async {
-        return await consolidatedFile.readAsBytes();
-      });
+      final bytes = await _fileReadLock.synchronized(
+              () => file.readAsBytes());
 
-      Uint8List gpxBytes = Uint8List.fromList(gpxBytesList);
+      final model = LocationModel(
+        location_id    : const Uuid().v4(),
+        emp_id         : prefs.getString('emp_id') ?? '',
+        emp_name       : prefs.getString('emp_name') ?? '',
+        total_distance : totalDist.toString(),
+        file_name      : '$dateStr.gpx',
+        body           : Uint8List.fromList(bytes),
+        location_date  : eventDate,
+        location_time  : eventDate,
+        posted         : 0,
+      );
 
-      await _loadCounter();
-      final orderSerial = generateNewOrderId(emp_id);
+      await addLocation(model);
+      await _repo.syncUnposted(deleteAfterPost: true);
 
-      await addLocation(LocationModel(
-        location_id: orderSerial.toString(),
-        emp_id: emp_id.toString(),
-        total_distance: totalDistance.toString(),
-        file_name: "$dateStr.gpx", // ✅ CRITICAL: Use event date for filename
-        booker_name: emp_name,
-        body: gpxBytes,
-      ));
-
-      await locationRepository.postDataFromDatabaseToAPI();
-
-      debugPrint("✅ [DATE-SPECIFIC] Location data saved from CONSOLIDATED file");
-      debugPrint("📁 [DATE-SPECIFIC] File: $dateStr.gpx");
-      debugPrint("📏 [DATE-SPECIFIC] Distance: $totalDistance km");
-
+      debugPrint(
+          '✅ [LocVM] Location saved: $dateStr.gpx | dist=${totalDist.toStringAsFixed(3)} km');
     } catch (e) {
-      debugPrint("❌ [DATE-SPECIFIC] Error in saveLocationFromConsolidatedFileForDate: $e");
+      debugPrint('❌ [LocVM] saveLocationFromConsolidatedFileForDate error: $e');
     }
   }
 
-  // ✅ NEW: Calculate distance for specific date file
-  Future<double> calculateTotalDistanceForDate(DateTime date) async {
+  // ─────────────────────────────────────────────────────────────────────────
+  // LOCATION SERVICE STATUS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> checkLocationServiceStatus() async {
     try {
-      final dateStr = DateFormat('dd-MM-yyyy').format(date);
-      final downloadDirectory = await getDownloadsDirectory();
-      final filePath = "${downloadDirectory!.path}/track_${emp_id}_$dateStr.gpx";
+      final filePath = await _gpxFilePath();
+      final file     = File(filePath);
+      final exists   = await file.exists();
+      final size     = exists ? await file.length() : 0;
+      int   pts      = 0;
 
-      File file = File(filePath);
-
-      if (!await file.exists()) {
-        return 0.0;
-      }
-
-      double distance = await _fileReadLock.synchronized(() async {
-        return await calculateTotalDistance(filePath);
-      });
-
-      return distance;
-    } catch (e) {
-      debugPrint("❌ [DATE-SPECIFIC] Error calculating distance for date: $e");
-      return 0.0;
-    }
-  }
-
-  // ✅ FIXED: Original method - now delegates to date-specific method with current date
-  Future<void> consolidateDailyGPXData() async {
-    await consolidateDailyGPXDataForDate(DateTime.now());
-  }
-
-  // ✅ FIXED: Original method - now delegates to date-specific method with current date
-  Future<void> saveLocationFromConsolidatedFile() async {
-    await saveLocationFromConsolidatedFileForDate(DateTime.now());
-  }
-
-  // ----------------------
-  // Location Saving Methods (Original - Kept for compatibility)
-  // ----------------------
-
-  // ✅ FIXED: With proper async flow and error handling
-  Future<void> saveLocation() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
-    final downloadDirectory = await getDownloadsDirectory();
-    final gpxFilePath = '${downloadDirectory!.path}/track$date.gpx';
-    final maingpxFile = File(gpxFilePath);
-
-    // ✅ Async check
-    if (!await maingpxFile.exists()) {
-      debugPrint('❌ GPX file does not exist');
-      return;
-    }
-
-    try {
-      // ✅ Use lock for distance calculation
-      double totalDistance = await _fileReadLock.synchronized(() async {
-        return await calculateTotalDistance(gpxFilePath);
-      });
-
-      await prefs.setDouble('totalDistance', totalDistance);
-
-      // ✅ Read bytes with lock
-      List<int> gpxBytesList = await _fileReadLock.synchronized(() async {
-        return await maingpxFile.readAsBytes();
-      });
-
-      Uint8List gpxBytes = Uint8List.fromList(gpxBytesList);
-
-      await _loadCounter();
-      final orderSerial = generateNewOrderId(emp_id);
-
-      await addLocation(LocationModel(
-        location_id: orderSerial.toString(),
-        emp_id: emp_id.toString(),
-        total_distance: totalDistance.toString(),
-        file_name: "$date.gpx",
-        booker_name: emp_name,
-        body: gpxBytes,
-      ));
-
-      await locationRepository.postDataFromDatabaseToAPI();
-
-      debugPrint("✅ Location data saved successfully");
-
-    } catch (e) {
-      debugPrint("❌ Error in saveLocation: $e");
-    }
-  }
-
-  // ----------------------
-  // Counter Logic
-  // ----------------------
-  Future<void> _loadCounter() async {
-    String currentMonth = DateFormat('MMM').format(DateTime.now());
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    locationSerialCounter = (prefs.getInt('locationSerialCounter') ?? locationHighestSerial ?? 1);
-    locationCurrentMonth =
-        prefs.getString('locationCurrentMonth') ?? currentMonth;
-    currentemp_id = prefs.getString('currentemp_id') ?? '';
-
-    if (locationCurrentMonth != currentMonth) {
-      locationSerialCounter = 1;
-      locationCurrentMonth = currentMonth;
-    }
-    debugPrint('SR: $locationSerialCounter');
-  }
-
-  Future<void> _saveCounter() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('locationSerialCounter', locationSerialCounter);
-    await prefs.setString('locationCurrentMonth', locationCurrentMonth);
-    await prefs.setString('currentemp_id', currentemp_id);
-  }
-
-  String generateNewOrderId(String emp_id) {
-    String currentMonth = DateFormat('MMM').format(DateTime.now());
-
-    if (currentemp_id != emp_id) {
-      locationSerialCounter = locationHighestSerial ?? 1;
-      currentemp_id = emp_id;
-    }
-
-    if (locationCurrentMonth != currentMonth) {
-      locationSerialCounter = 1;
-      locationCurrentMonth = currentMonth;
-    }
-
-    String orderId =
-        "LOC-$emp_id-$currentMonth-${locationSerialCounter.toString().padLeft(3, '0')}";
-    locationSerialCounter++;
-    _saveCounter();
-    return orderId;
-  }
-
-  // ----------------------
-  // Location Logic
-  // ----------------------
-  Future<void> saveCurrentLocation() async {
-    PermissionStatus permission = await Permission.location.request();
-
-    if (permission.isGranted) {
-      try {
-        Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
-        globalLatitude1.value = position.latitude;
-        globalLongitude1.value = position.longitude;
-
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-            globalLatitude1.value, globalLongitude1.value);
-
-        if (placemarks.isNotEmpty) {
-          Placemark currentPlace = placemarks[0];
-          String address =
-              "${currentPlace.thoroughfare ?? ''} ${currentPlace.subLocality ?? ''}, ${currentPlace.locality ?? ''} ${currentPlace.postalCode ?? ''}, ${currentPlace.country ?? ''}";
-          shopAddress.value = address.trim().isEmpty ? "Not Verified" : address;
-        }
-
-        debugPrint('Latitude: ${globalLatitude1.value}, Longitude: ${globalLongitude1.value}');
-        debugPrint('Address is: ${shopAddress.value}');
-      } catch (e) {
-        debugPrint("Error getting location: $e");
-      }
-    }
-  }
-
-  loadClockStatus() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    isClockedIn.value = prefs.getBool('isClockedIn') ?? false;
-    if (!isClockedIn.value) {
-      prefs.setInt('secondsPassed', 0);
-    }
-  }
-
-  saveClockStatus(bool clockedIn) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isClockedIn', clockedIn);
-    isClockedIn.value = clockedIn;
-  }
-
-  saveCurrentTime() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    DateTime currentTime = DateTime.now();
-    String formattedTime = _formatDateTime(currentTime);
-    await prefs.setString('savedTime', formattedTime);
-    debugPrint("Save Current Time");
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    final formatter = DateFormat('HH:mm:ss');
-    return formatter.format(dateTime);
-  }
-
-  // ✅ FIXED: Better error handling and null safety
-  Future<double> calculateTotalDistance(String filePath) async {
-    try {
-      File file = File(filePath);
-
-      // ✅ Async check
-      if (!await file.exists()) {
-        return 0.0;
-      }
-
-      // ✅ Use lock for thread-safe reading
-      String gpxContent = await _fileReadLock.synchronized(() async {
-        return await file.readAsString();
-      });
-
-      if (gpxContent.isEmpty) {
-        return 0.0;
-      }
-
-      Gpx gpx;
-      try {
-        gpx = GpxReader().fromString(gpxContent);
-      } catch (e) {
-        debugPrint("❌ Error parsing GPX content: $e");
-        return 0.0;
-      }
-
-      double totalDistance = 0.0;
-
-      // ✅ Null safety checks
-      for (var track in gpx.trks) {
-        if (track.trksegs == null) continue;
-
-        for (var segment in track.trksegs) {
-          if (segment.trkpts == null || segment.trkpts.length < 2) continue;
-
-          for (int i = 0; i < segment.trkpts.length - 1; i++) {
-            var currentPoint = segment.trkpts[i];
-            var nextPoint = segment.trkpts[i + 1];
-
-            // ✅ Null checks for coordinates
-            if (currentPoint.lat == null || currentPoint.lon == null ||
-                nextPoint.lat == null || nextPoint.lon == null) {
-              continue;
-            }
-
-            double distance = calculateDistance(
-              currentPoint.lat!.toDouble(),
-              currentPoint.lon!.toDouble(),
-              nextPoint.lat!.toDouble(),
-              nextPoint.lon!.toDouble(),
-            );
-            totalDistance += distance;
-          }
+      if (exists) {
+        final content = await _fileReadLock.synchronized(
+                () => file.readAsString());
+        if (content.isNotEmpty) {
+          pts = _getTotalPoints(GpxReader().fromString(content));
         }
       }
 
-      debugPrint("📏 Calculated distance: ${totalDistance.toStringAsFixed(3)} km");
-      return totalDistance;
+      return {
+        'serviceActive'   : true,
+        'fileExists'      : exists,
+        'fileSize'        : size,
+        'pointsRecorded'  : pts,
+        'filePath'        : filePath,
+      };
     } catch (e) {
-      debugPrint("❌ Error in calculateTotalDistance: $e");
-      return 0.0;
+      return {'serviceActive': false, 'error': e.toString()};
     }
   }
 
-  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    double distanceInMeters = Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
-    return (distanceInMeters / 1000);
+  int _getTotalPoints(Gpx gpx) => gpx.trks
+      .expand((t) => t.trksegs)
+      .fold(0, (sum, s) => sum + s.trkpts.length);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SYNC STATUS HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> checkSyncStatus() async {
+    final prefs  = await SharedPreferences.getInstance();
+    final status = prefs.getString('clockOutSyncStatus') ?? 'unknown';
+    return {
+      'syncStatus'     : status,
+      'lastClockOutTime': prefs.getString('lastClockOutTime'),
+      'lastDistance'   : prefs.getDouble('lastClockOutDistance'),
+      'hasPendingSync' : ['pending', 'pending_local', 'retry_needed']
+          .contains(status),
+    };
   }
 
-  Future<double> calculateShiftDistance(DateTime shiftStartTime) async {
-    try {
-      final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
-      final downloadDirectory = await getDownloadsDirectory();
-      final gpxFilePath = '${downloadDirectory!.path}/track$date.gpx';
-
-      File file = File(gpxFilePath);
-      if (!file.existsSync()) return 0.0;
-
-      String gpxContent = await file.readAsString();
-      if (gpxContent.isEmpty) return 0.0;
-
-      Gpx gpx = GpxReader().fromString(gpxContent);
-      double shiftDistance = 0.0;
-
-      for (var track in gpx.trks) {
-        for (var segment in track.trksegs) {
-          List<Wpt> shiftPoints = [];
-          for (var point in segment.trkpts) {
-            if (point.time != null && point.time!.isAfter(shiftStartTime)) {
-              shiftPoints.add(point);
-            }
-          }
-
-          for (int i = 0; i < shiftPoints.length - 1; i++) {
-            double distance = calculateDistance(
-              shiftPoints[i].lat?.toDouble() ?? 0.0,
-              shiftPoints[i].lon?.toDouble() ?? 0.0,
-              shiftPoints[i + 1].lat?.toDouble() ?? 0.0,
-              shiftPoints[i + 1].lon?.toDouble() ?? 0.0,
-            );
-            shiftDistance += distance;
-          }
-        }
-      }
-
-      debugPrint("📍 Shift Distance: $shiftDistance km");
-      return shiftDistance;
-    } catch (e) {
-      debugPrint("❌ Error calculating shift distance: $e");
-      return 0.0;
-    }
+  Future<void> clearSyncStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('clockOutSyncStatus');
+    await prefs.remove('lastClockOutTime');
+    await prefs.remove('lastClockOutDistance');
+    await prefs.remove('pendingAttendanceOutId');
+    debugPrint('🧹 [LocVM] Sync status cleared');
   }
 
-  // ----------------------
-  // Permissions Logic
-  // ----------------------
+  // ─────────────────────────────────────────────────────────────────────────
+  // DATABASE CRUD
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> fetchAllLocation() async {
+    allLocation.value = await _repo.getAll();
+  }
+
+  Future<void> addLocation(LocationModel model) async {
+    await _repo.add(model);
+    await fetchAllLocation();
+  }
+
+  Future<void> deleteLocation(String id) async {
+    await _repo.delete(id);
+    await fetchAllLocation();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PERMISSIONS
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> requestPermissions() async {
     if (await Permission.notification.request().isDenied) {
       SystemChannels.platform.invokeMethod('SystemNavigator.pop');
       return;
     }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      _showLocationRequiredDialog();
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      _showLocationDialog();
       return;
     }
 
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _showLocationRequiredDialog();
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      _showLocationDialog();
       return;
     }
 
     if (await Permission.locationAlways.request().isDenied) {
       SystemChannels.platform.invokeMethod('SystemNavigator.pop');
-      return;
     }
   }
 
-  void _showLocationRequiredDialog() {
+  void _showLocationDialog() {
     Get.dialog(
       WillPopScope(
         onWillPop: () async => false,
         child: AlertDialog(
-          title: const Text('Location Required', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Location Required',
+              style: TextStyle(fontWeight: FontWeight.bold)),
           content: const SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('For a better experience, your device will need to use Location Accuracy.', style: TextStyle(fontSize: 16)),
+                Text(
+                    'For a better experience, your device will need to use Location Accuracy.'),
                 SizedBox(height: 16),
-                Text('The following settings should be on:', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text('The following settings should be on:',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-                    SizedBox(width: 8),
-                    Text('Device location'),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Icon(Icons.radio_button_checked, size: 16, color: Colors.green),
-                    SizedBox(width: 8),
-                    Text('Location Accuracy'),
-                  ],
-                ),
+                Row(children: [
+                  Icon(Icons.radio_button_checked,
+                      size: 16, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('Device location'),
+                ]),
+                Row(children: [
+                  Icon(Icons.radio_button_checked,
+                      size: 16, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('Location Accuracy'),
+                ]),
                 SizedBox(height: 12),
-                Text('Location Accuracy provides more accurate location for apps and services.', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                Text(
+                  'Location Accuracy provides more accurate location for apps and services.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
               ],
             ),
           ),
@@ -814,193 +648,67 @@ class LocationViewModel extends GetxController {
     );
   }
 
-  // ----------------------
-  // Database CRUD
-  // ----------------------
-  Future<void> fetchAllLocation() async {
-    var location = await locationRepository.getLocation();
-    allLocation.value = location;
-  }
-
-  addLocation(LocationModel locationModel) {
-    locationRepository.add(locationModel);
-    fetchAllLocation();
-  }
-
-  void updateLocation(LocationModel locationModel) {
-    locationRepository.update(locationModel);
-    fetchAllLocation();
-  }
-
-  void deleteLocation(String id) {
-    locationRepository.delete(id);
-    fetchAllLocation();
-  }
-
-  serialCounterGet() async {
-    await locationRepository.serialNumberGeneratorApi();
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // DAILY PROCESSING INIT
+  // ─────────────────────────────────────────────────────────────────────────
 
   void _initializeDailyProcessing() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    lastProcessedDate.value = prefs.getString('lastProcessedDate') ?? '';
-    isDailyProcessingComplete.value = prefs.getBool('isDailyProcessingComplete') ?? false;
+    final prefs = await SharedPreferences.getInstance();
+    lastProcessedDate.value         = prefs.getString(_keyLastProcessedDate) ?? '';
+    isDailyProcessingComplete.value =
+        prefs.getBool(_keyIsDailyProcessingComplete) ?? false;
 
-    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     if (lastProcessedDate.value != today) {
       isDailyProcessingComplete.value = false;
-      await prefs.setBool('isDailyProcessingComplete', false);
+      await prefs.setBool(_keyIsDailyProcessingComplete, false);
     }
   }
 
-  // ----------------------
-  // Utility Methods
-  // ----------------------
+  // ─────────────────────────────────────────────────────────────────────────
+  // AUTO SYNC (on open + every 5 minutes)
+  // ─────────────────────────────────────────────────────────────────────────
 
-  Future<double> calculateShiftDistanceFast(DateTime shiftStartTime) async {
+  void _startGpxAutoSync() {
+    debugPrint('🚀 [LocVM] GPX auto-sync started');
+    _syncGpxIfOnline(); // immediate
+    _gpxSyncTimer =
+        Timer.periodic(const Duration(minutes: 5), (_) => _syncGpxIfOnline());
+  }
+
+  Future<void> _syncGpxIfOnline() async {
+    if (_isGpxAutoSyncing) return;
+    _isGpxAutoSyncing = true;
     try {
-      final date = DateFormat('dd-MM-yyyy').format(DateTime.now());
-      final downloadDirectory = await getDownloadsDirectory();
-      final gpxFilePath = '${downloadDirectory!.path}/track$date.gpx';
-
-      File file = File(gpxFilePath);
-      if (!file.existsSync()) return 0.0;
-
-      String gpxContent = await file.readAsString();
-      if (gpxContent.isEmpty) return 0.0;
-
-      RegExp coordPattern = RegExp(r'lat="([^"]+)" lon="([^"]+)"');
-      List<RegExpMatch> matches = coordPattern.allMatches(gpxContent).toList();
-
-      if (matches.length < 2) return 0.0;
-
-      double totalDistance = 0.0;
-      double? prevLat, prevLon;
-
-      for (int i = 0; i < matches.length; i++) {
-        double lat = double.parse(matches[i].group(1)!);
-        double lon = double.parse(matches[i].group(2)!);
-
-        if (prevLat != null && prevLon != null) {
-          totalDistance += calculateDistance(prevLat, prevLon, lat, lon);
-        }
-
-        prevLat = lat;
-        prevLon = lon;
-      }
-
-      return totalDistance;
-    } catch (e) {
-      debugPrint("❌ Fast distance calculation error: $e");
-      return 0.0;
-    }
-  }
-
-  Future<Map<String, dynamic>> checkSyncStatus() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-
-    String syncStatus = prefs.getString('clockOutSyncStatus') ?? 'unknown';
-    String? lastClockOutTime = prefs.getString('lastClockOutTime');
-    double? lastDistance = prefs.getDouble('lastClockOutDistance');
-
-    return {
-      'syncStatus': syncStatus,
-      'lastClockOutTime': lastClockOutTime,
-      'lastDistance': lastDistance,
-      'hasPendingSync': syncStatus == 'pending' || syncStatus == 'pending_local' || syncStatus == 'retry_needed'
-    };
-  }
-
-  Future<void> clearSyncStatus() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove('clockOutSyncStatus');
-    await prefs.remove('lastClockOutTime');
-    await prefs.remove('lastClockOutDistance');
-    await prefs.remove('pendingAttendanceOutId');
-    debugPrint("🧹 Sync status cleared");
-  }
-
-  // ===============================
-// 🔥 AUTO SYNC ALL LOCAL DB DATA
-// ===============================
-
-  Future<void> _autoSyncPendingLocalData() async {
-    if (_isAutoSyncing) return;
-
-    _isAutoSyncing = true;
-
-    try {
-      debugPrint("🚀 App Opened → Checking pending local data...");
-
-      final hasInternet = await _checkInternet();
-      if (!hasInternet) {
-        debugPrint("❌ No internet. Auto sync skipped.");
+      if (!await _hasInternet()) {
+        debugPrint('❌ [LocVM] No internet — GPX sync skipped');
         return;
       }
-
-      // 👇 Ye method DB ke sab pending records API pe bhej dega
-      await locationRepository.postDataFromDatabaseToAPI();
-
-      debugPrint("✅ All pending local data synced successfully.");
-
+      await _repo.syncUnposted(deleteAfterPost: true);
+      debugPrint('✅ [LocVM] GPX sync complete');
     } catch (e) {
-      debugPrint("❌ Auto sync error: $e");
+      debugPrint('❌ [LocVM] GPX sync error: $e');
     } finally {
-      _isAutoSyncing = false;
+      _isGpxAutoSyncing = false;
     }
   }
 
-  Future<bool> _checkInternet() async {
+  Future<bool> _hasInternet() async {
     try {
       final result = await InternetAddress.lookup('google.com');
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } on SocketException catch (_) {
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } on SocketException {
       return false;
     }
   }
 
-  // ===============================
-// 🚀 START GPX AUTO SYNC TIMER
-// ===============================
-  void _startGpxAutoSync() {
-    debugPrint("🚀 GPX Auto Sync Started");
+  // ─────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
 
-    _gpxSyncTimer =
-        Timer.periodic(const Duration(minutes: 5), (timer) async {
-          await _syncGpxIfOnline();
-        });
-
-    // 🔥 Immediate Sync on App Open
-    _syncGpxIfOnline();
-  }
-
-  // ===============================
-// 🔄 SYNC GPX DATA IF INTERNET
-// ===============================
-  Future<void> _syncGpxIfOnline() async {
-    if (_isGpxAutoSyncing) return;
-
-    _isGpxAutoSyncing = true;
-
-    try {
-      debugPrint("🔍 Checking pending GPX data...");
-
-      final hasInternet = await _checkInternet();
-      if (!hasInternet) {
-        debugPrint("❌ No internet — GPX sync skipped");
-        return;
-      }
-
-      // 🔥 Yahan apka Location Repository sync call hoga
-      await locationRepository.postDataFromDatabaseToAPI();
-
-      debugPrint("✅ GPX local data synced successfully");
-
-    } catch (e) {
-      debugPrint("❌ GPX Sync Error: $e");
-    } finally {
-      _isGpxAutoSyncing = false;
-    }
+  String _formatDuration(int seconds) {
+    final d = Duration(seconds: seconds);
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.inHours)}:${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}';
   }
 }

@@ -1,1568 +1,389 @@
-// // //
-// // // import 'dart:convert';
-// // // import 'package:http/http.dart' as http;
-// // // import 'package:flutter/foundation.dart';
-// // // import 'package:intl/intl.dart';
-// // // import '../Database/db_helper.dart';
-// // // import '../Database/util.dart';
-// // // import '../Models/attendanceOut_model.dart';
-// // // import '../../constants.dart';
-// // //
-// // // class AttendanceOutRepository {
-// // //   final DBHelper dbHelper = DBHelper();
-// // //
-// // //   // ✅ Track posted IDs in session to prevent duplicate posting
-// // //   final Set<String> _postedIds = {};
-// // //
-// // //   // ✅ Correct API endpoint for attendance OUT
-// // //   static const String _attendanceOutApi = 'http://oracle.metaxperts.net/ords/production/attendanceout/post/';
-// // //
-// // //   // Get all attendance out records
-// // //   Future<List<AttendanceOutModel>> getAttendanceOut() async {
-// // //     try {
-// // //       final db = await dbHelper.db;
-// // //       final List<Map<String, dynamic>> maps = await db.query(
-// // //         attendanceOutTableName,
-// // //         orderBy: 'attendance_out_date DESC',
-// // //       );
-// // //
-// // //       debugPrint('📊 [REPO-OUT] Raw data from AttendanceOut database: ${maps.length} records');
-// // //       for (var map in maps) {
-// // //         debugPrint("   - ID: ${map['attendance_out_id']}, Posted: ${map['posted']}");
-// // //       }
-// // //
-// // //       return List.generate(maps.length, (i) {
-// // //         return AttendanceOutModel.fromMap(maps[i]);
-// // //       });
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error getting attendance out: $e');
-// // //       return [];
-// // //     }
-// // //   }
-// // //
-// // //   // Fetch from API and save locally
-// // //   Future<void> fetchAndSaveAttendanceOut() async {
-// // //     try {
-// // //       debugPrint('🔍 [REPO-OUT] Fetching attendance out from API...');
-// // //       final response = await http.get(
-// // //         Uri.parse('http://oracle.metaxperts.net/ords/production/attendanceout/get/$emp_id'),
-// // //         headers: {'Content-Type': 'application/json'},
-// // //       ).timeout(const Duration(seconds: 15));
-// // //
-// // //       if (response.statusCode == 200) {
-// // //         final List<dynamic> data = jsonDecode(response.body);
-// // //         final db = await dbHelper.db;
-// // //
-// // //         int savedCount = 0;
-// // //         for (var item in data) {
-// // //           try {
-// // //             item['posted'] = 1;
-// // //             AttendanceOutModel model = AttendanceOutModel.fromMap(item);
-// // //
-// // //             final existing = await db.query(
-// // //               attendanceOutTableName,
-// // //               where: 'attendance_out_id = ?',
-// // //               whereArgs: [model.attendance_out_id],
-// // //             );
-// // //
-// // //             if (existing.isEmpty) {
-// // //               await db.insert(attendanceOutTableName, model.toMap());
-// // //               savedCount++;
-// // //               debugPrint("✅ [REPO-OUT] Saved from API: ${model.attendance_out_id}");
-// // //             } else {
-// // //               debugPrint("⚠️ [REPO-OUT] Skipping duplicate from API: ${model.attendance_out_id}");
-// // //             }
-// // //           } catch (e) {
-// // //             debugPrint("❌ [REPO-OUT] Error saving item: $e");
-// // //           }
-// // //         }
-// // //         debugPrint("✅ [REPO-OUT] Fetched and saved $savedCount records from API");
-// // //       } else {
-// // //         debugPrint('❌ [REPO-OUT] API fetch failed with status: ${response.statusCode}');
-// // //       }
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error fetching from API: $e');
-// // //     }
-// // //   }
-// // //
-// // //   // Get unposted attendance out records
-// // //   Future<List<AttendanceOutModel>> getUnPostedAttendanceOut() async {
-// // //     try {
-// // //       final db = await dbHelper.db;
-// // //       final List<Map<String, dynamic>> maps = await db.query(
-// // //         attendanceOutTableName,
-// // //         where: 'posted = ?',
-// // //         whereArgs: [0],
-// // //       );
-// // //
-// // //       debugPrint('📊 [REPO-OUT] Found ${maps.length} unposted records');
-// // //
-// // //       return List.generate(maps.length, (i) {
-// // //         return AttendanceOutModel.fromMap(maps[i]);
-// // //       });
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error getting unposted records: $e');
-// // //       return [];
-// // //     }
-// // //   }
-// // //
-// // //   // ✅ ENHANCED: Add attendance out record with database health check
-// // //   Future<int> addAttendanceOut(AttendanceOutModel attendanceOut) async {
-// // //     try {
-// // //       // Ensure database is writable
-// // //       if (!await ensureDatabaseWritable()) {
-// // //         debugPrint('❌ [REPO-OUT] Database not writable, cannot add record');
-// // //         return -1;
-// // //       }
-// // //
-// // //       final db = await dbHelper.db;
-// // //       attendanceOut.posted = 0;
-// // //
-// // //       // Check if already exists
-// // //       final existing = await db.query(
-// // //         attendanceOutTableName,
-// // //         where: 'attendance_out_id = ?',
-// // //         whereArgs: [attendanceOut.attendance_out_id],
-// // //       );
-// // //
-// // //       if (existing.isNotEmpty) {
-// // //         debugPrint('⚠️ [REPO-OUT] Duplicate record found, skipping: ${attendanceOut.attendance_out_id}');
-// // //         return 0;
-// // //       }
-// // //
-// // //       debugPrint('✅ [REPO-OUT] Adding new record: ${attendanceOut.attendance_out_id}');
-// // //       final result = await db.insert(attendanceOutTableName, attendanceOut.toMap());
-// // //       debugPrint('✅ [REPO-OUT] Insert successful with result: $result');
-// // //       return result;
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error adding record: $e');
-// // //       return -1;
-// // //     }
-// // //   }
-// // //
-// // //   // Update attendance out record
-// // //   Future<int> updateAttendanceOut(AttendanceOutModel attendanceOut) async {
-// // //     try {
-// // //       final db = await dbHelper.db;
-// // //       debugPrint('✏️ [REPO-OUT] Updating record: ${attendanceOut.attendance_out_id}');
-// // //       return await db.update(
-// // //         attendanceOutTableName,
-// // //         attendanceOut.toMap(),
-// // //         where: 'attendance_out_id = ?',
-// // //         whereArgs: [attendanceOut.attendance_out_id],
-// // //       );
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error updating record: $e');
-// // //       rethrow;
-// // //     }
-// // //   }
-// // //
-// // //   // Mark as posted
-// // //   Future<void> markAsPosted(String id) async {
-// // //     try {
-// // //       final db = await dbHelper.db;
-// // //       await db.update(
-// // //         attendanceOutTableName,
-// // //         {'posted': 1},
-// // //         where: 'attendance_out_id = ?',
-// // //         whereArgs: [id],
-// // //       );
-// // //       _postedIds.add(id);
-// // //       debugPrint('✅ [REPO-OUT] Marked as posted: $id');
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error marking as posted: $e');
-// // //     }
-// // //   }
-// // //
-// // //   // Post single record to API with retry logic
-// // //   Future<bool> postToAPI(AttendanceOutModel attendanceOut) async {
-// // //     const int maxRetries = 2;
-// // //
-// // //     for (int attempt = 1; attempt <= maxRetries; attempt++) {
-// // //       try {
-// // //         debugPrint('🌐 [REPO-OUT] Attempt $attempt: Posting ${attendanceOut.attendance_out_id} to $_attendanceOutApi');
-// // //
-// // //         var recordData = attendanceOut.toJson();
-// // //         recordData['reason'] = attendanceOut.reason ?? 'manual';
-// // //
-// // //         final response = await http.post(
-// // //           Uri.parse(_attendanceOutApi),
-// // //           headers: {
-// // //             'Content-Type': 'application/json',
-// // //             'Accept': 'application/json',
-// // //           },
-// // //           body: jsonEncode(recordData),
-// // //         ).timeout(const Duration(seconds: 15));
-// // //
-// // //         debugPrint('📡 [REPO-OUT] Response: ${response.statusCode}');
-// // //         debugPrint('📡 [REPO-OUT] Response body: ${response.body}');
-// // //
-// // //         if (response.statusCode == 200 || response.statusCode == 201) {
-// // //           await markAsPosted(attendanceOut.attendance_out_id!);
-// // //           return true;
-// // //         } else {
-// // //           debugPrint('❌ Server error ${response.statusCode}: ${response.body}');
-// // //         }
-// // //       } catch (e) {
-// // //         debugPrint('❌ Attempt $attempt failed: $e');
-// // //       }
-// // //     }
-// // //
-// // //     return false;
-// // //   }
-// // //
-// // //   // Sync all unposted records
-// // //   Future<void> syncUnposted() async {
-// // //     debugPrint('🔄 [REPO-OUT] ===== STARTING SYNC =====');
-// // //
-// // //     if (!await isNetworkAvailable()) {
-// // //       debugPrint('📴 [REPO-OUT] No internet connection. Skipping sync.');
-// // //       return;
-// // //     }
-// // //
-// // //     final unposted = await getUnPostedAttendanceOut();
-// // //
-// // //     if (unposted.isEmpty) {
-// // //       debugPrint('📭 [REPO-OUT] No unposted attendance out records');
-// // //       return;
-// // //     }
-// // //
-// // //     debugPrint('🔄 [REPO-OUT] Syncing ${unposted.length} records');
-// // //
-// // //     // Deduplicate before posting
-// // //     final Map<String, AttendanceOutModel> uniqueRecords = {};
-// // //     for (var record in unposted) {
-// // //       if (record.attendance_out_id != null) {
-// // //         uniqueRecords[record.attendance_out_id.toString()] = record;
-// // //       }
-// // //     }
-// // //
-// // //     int successCount = 0;
-// // //     int failCount = 0;
-// // //
-// // //     for (var record in uniqueRecords.values) {
-// // //       // Skip if already posted in this session
-// // //       if (_postedIds.contains(record.attendance_out_id.toString())) {
-// // //         debugPrint('⚠️ [REPO-OUT] Skipping already posted in session: ${record.attendance_out_id}');
-// // //         continue;
-// // //       }
-// // //
-// // //       final posted = await postToAPI(record);
-// // //       if (posted) {
-// // //         successCount++;
-// // //         _postedIds.add(record.attendance_out_id.toString());
-// // //       } else {
-// // //         failCount++;
-// // //       }
-// // //
-// // //       await Future.delayed(const Duration(milliseconds: 500));
-// // //     }
-// // //
-// // //     debugPrint('📊 [REPO-OUT] Sync results: $successCount success, $failCount failed');
-// // //
-// // //     // Clean duplicate records after sync
-// // //     await _cleanDuplicateRecords();
-// // //
-// // //     debugPrint('🔄 [REPO-OUT] ===== SYNC COMPLETED =====');
-// // //   }
-// // //
-// // //   // Delete record
-// // //   Future<int> delete(String id) async {
-// // //     try {
-// // //       final db = await dbHelper.db;
-// // //       debugPrint('🗑️ [REPO-OUT] Deleting record: $id');
-// // //       return await db.delete(
-// // //         attendanceOutTableName,
-// // //         where: 'attendance_out_id = ?',
-// // //         whereArgs: [id],
-// // //       );
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error deleting record: $e');
-// // //       return -1;
-// // //     }
-// // //   }
-// // //
-// // //   // Clean duplicate records from local DB
-// // //   Future<void> _cleanDuplicateRecords() async {
-// // //     try {
-// // //       final db = await dbHelper.db;
-// // //
-// // //       final List<Map> allRecords = await db.query(
-// // //         attendanceOutTableName,
-// // //         columns: ['attendance_out_id'],
-// // //       );
-// // //
-// // //       final Set<String> uniqueIds = {};
-// // //       final List<String> duplicateIds = [];
-// // //
-// // //       for (var record in allRecords) {
-// // //         String id = record['attendance_out_id'].toString();
-// // //         if (uniqueIds.contains(id)) {
-// // //           duplicateIds.add(id);
-// // //         } else {
-// // //           uniqueIds.add(id);
-// // //         }
-// // //       }
-// // //
-// // //       for (String duplicateId in duplicateIds) {
-// // //         debugPrint('⚠️ [REPO-OUT] Found duplicates for ID: $duplicateId');
-// // //
-// // //         final List<Map> duplicates = await db.query(
-// // //           attendanceOutTableName,
-// // //           where: 'attendance_out_id = ?',
-// // //           whereArgs: [duplicateId],
-// // //         );
-// // //
-// // //         if (duplicates.length > 1) {
-// // //           for (int i = 1; i < duplicates.length; i++) {
-// // //             await db.delete(
-// // //               attendanceOutTableName,
-// // //               where: 'rowid = ?',
-// // //               whereArgs: [duplicates[i]['rowid']],
-// // //             );
-// // //           }
-// // //           debugPrint('✅ [REPO-OUT] Cleaned ${duplicates.length - 1} duplicates for ID: $duplicateId');
-// // //         }
-// // //       }
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error cleaning duplicates: $e');
-// // //     }
-// // //   }
-// // //
-// // //   // Get record by ID
-// // //   Future<AttendanceOutModel?> getRecordById(String id) async {
-// // //     try {
-// // //       final db = await dbHelper.db;
-// // //       final List<Map<String, dynamic>> maps = await db.query(
-// // //         attendanceOutTableName,
-// // //         where: 'attendance_out_id = ?',
-// // //         whereArgs: [id],
-// // //       );
-// // //
-// // //       if (maps.isNotEmpty) {
-// // //         return AttendanceOutModel.fromMap(maps.first);
-// // //       }
-// // //       return null;
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Error getting record by ID: $e');
-// // //       return null;
-// // //     }
-// // //   }
-// // //
-// // //   // Clear posted cache
-// // //   void clearPostedCache() {
-// // //     _postedIds.clear();
-// // //     debugPrint('🧹 [REPO-OUT] Cleared posted IDs cache');
-// // //   }
-// // //
-// // //   // Generate unique attendance out ID
-// // //   Future<String> generateAttendanceOutId() async {
-// // //     final now = DateTime.now();
-// // //     final formattedDate = DateFormat('ddMMMyyyyHHmmss').format(now);
-// // //     String id = "ATD-OUT-$emp_id-$formattedDate";
-// // //     debugPrint('🔢 [REPO-OUT] Generated ID: $id');
-// // //     return id;
-// // //   }
-// // //
-// // //   // ✅ Database health check method
-// // //   Future<bool> ensureDatabaseWritable() async {
-// // //     try {
-// // //       final isHealthy = await dbHelper.isDatabaseHealthy();
-// // //       if (!isHealthy) {
-// // //         debugPrint('⚠️ [REPO-OUT] Database unhealthy, attempting repair...');
-// // //         final repaired = await dbHelper.repairDatabase();
-// // //         if (!repaired) {
-// // //           debugPrint('❌ [REPO-OUT] Database repair failed');
-// // //           return false;
-// // //         }
-// // //       }
-// // //       return true;
-// // //     } catch (e) {
-// // //       debugPrint('❌ [REPO-OUT] Database check failed: $e');
-// // //       return false;
-// // //     }
-// // //   }
-// // // }
-// //
-// // import 'dart:convert';
-// // import 'package:http/http.dart' as http;
-// // import 'package:flutter/foundation.dart';
-// // import 'package:intl/intl.dart';
-// // import '../Database/db_helper.dart';
-// // import '../Database/util.dart';
-// // import '../Models/attendanceOut_model.dart';
-// // import '../../constants.dart';
-// //
-// // class AttendanceOutRepository {
-// //   final DBHelper dbHelper = DBHelper();
-// //
-// //   // ✅ Track posted IDs in session to prevent duplicate posting
-// //   final Set<String> _postedIds = {};
-// //
-// //   // ✅ FIX: Removed trailing space - verify this endpoint with your backend
-// //   static const String _attendanceOutApi = 'http://oracle.metaxperts.net/ords/production/attendanceout/post';
-// //
-// //   // Get all attendance out records
-// //   Future<List<AttendanceOutModel>> getAttendanceOut() async {
-// //     try {
-// //       final db = await dbHelper.db;
-// //       final List<Map<String, dynamic>> maps = await db.query(
-// //         attendanceOutTableName,
-// //         orderBy: 'attendance_out_date DESC',
-// //       );
-// //
-// //       debugPrint('📊 [REPO-OUT] Raw data from AttendanceOut database: ${maps.length} records');
-// //       for (var map in maps) {
-// //         debugPrint("   - ID: ${map['attendance_out_id']}, Posted: ${map['posted']}");
-// //       }
-// //
-// //       return List.generate(maps.length, (i) {
-// //         return AttendanceOutModel.fromMap(maps[i]);
-// //       });
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error getting attendance out: $e');
-// //       return [];
-// //     }
-// //   }
-// //
-// //   // Fetch from API and save locally
-// //   Future<void> fetchAndSaveAttendanceOut() async {
-// //     try {
-// //       debugPrint('🔍 [REPO-OUT] Fetching attendance out from API...');
-// //       // ✅ FIX: Removed trailing space
-// //       final url = 'http://oracle.metaxperts.net/ords/production/attendanceout/get/$emp_id';
-// //       final response = await http.get(
-// //         Uri.parse(url),
-// //         headers: {'Content-Type': 'application/json'},
-// //       ).timeout(const Duration(seconds: 15));
-// //
-// //       if (response.statusCode == 200) {
-// //         final List<dynamic> data = jsonDecode(response.body);
-// //         final db = await dbHelper.db;
-// //
-// //         int savedCount = 0;
-// //         for (var item in data) {
-// //           try {
-// //             item['posted'] = 1;
-// //             AttendanceOutModel model = AttendanceOutModel.fromMap(item);
-// //
-// //             final existing = await db.query(
-// //               attendanceOutTableName,
-// //               where: 'attendance_out_id = ?',
-// //               whereArgs: [model.attendance_out_id],
-// //             );
-// //
-// //             if (existing.isEmpty) {
-// //               await db.insert(attendanceOutTableName, model.toMap());
-// //               savedCount++;
-// //               debugPrint("✅ [REPO-OUT] Saved from API: ${model.attendance_out_id}");
-// //             } else {
-// //               debugPrint("⚠️ [REPO-OUT] Skipping duplicate from API: ${model.attendance_out_id}");
-// //             }
-// //           } catch (e) {
-// //             debugPrint("❌ [REPO-OUT] Error saving item: $e");
-// //           }
-// //         }
-// //         debugPrint("✅ [REPO-OUT] Fetched and saved $savedCount records from API");
-// //       } else {
-// //         debugPrint('❌ [REPO-OUT] API fetch failed with status: ${response.statusCode}');
-// //       }
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error fetching from API: $e');
-// //     }
-// //   }
-// //
-// //   // Get unposted attendance out records
-// //   Future<List<AttendanceOutModel>> getUnPostedAttendanceOut() async {
-// //     try {
-// //       final db = await dbHelper.db;
-// //       final List<Map<String, dynamic>> maps = await db.query(
-// //         attendanceOutTableName,
-// //         where: 'posted = ?',
-// //         whereArgs: [0],
-// //       );
-// //
-// //       debugPrint('📊 [REPO-OUT] Found ${maps.length} unposted records');
-// //
-// //       return List.generate(maps.length, (i) {
-// //         return AttendanceOutModel.fromMap(maps[i]);
-// //       });
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error getting unposted records: $e');
-// //       return [];
-// //     }
-// //   }
-// //
-// //   // ✅ ENHANCED: Add attendance out record with database health check
-// //   Future<int> addAttendanceOut(AttendanceOutModel attendanceOut) async {
-// //     try {
-// //       // Ensure database is writable
-// //       if (!await ensureDatabaseWritable()) {
-// //         debugPrint('❌ [REPO-OUT] Database not writable, cannot add record');
-// //         return -1;
-// //       }
-// //
-// //       final db = await dbHelper.db;
-// //       attendanceOut.posted = 0;
-// //
-// //       // Check if already exists
-// //       final existing = await db.query(
-// //         attendanceOutTableName,
-// //         where: 'attendance_out_id = ?',
-// //         whereArgs: [attendanceOut.attendance_out_id],
-// //       );
-// //
-// //       if (existing.isNotEmpty) {
-// //         debugPrint('⚠️ [REPO-OUT] Duplicate record found, skipping: ${attendanceOut.attendance_out_id}');
-// //         return 0;
-// //       }
-// //
-// //       debugPrint('✅ [REPO-OUT] Adding new record: ${attendanceOut.attendance_out_id}');
-// //       final result = await db.insert(attendanceOutTableName, attendanceOut.toMap());
-// //       debugPrint('✅ [REPO-OUT] Insert successful with result: $result');
-// //       return result;
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error adding record: $e');
-// //       return -1;
-// //     }
-// //   }
-// //
-// //   // Update attendance out record
-// //   Future<int> updateAttendanceOut(AttendanceOutModel attendanceOut) async {
-// //     try {
-// //       final db = await dbHelper.db;
-// //       debugPrint('✏️ [REPO-OUT] Updating record: ${attendanceOut.attendance_out_id}');
-// //       return await db.update(
-// //         attendanceOutTableName,
-// //         attendanceOut.toMap(),
-// //         where: 'attendance_out_id = ?',
-// //         whereArgs: [attendanceOut.attendance_out_id],
-// //       );
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error updating record: $e');
-// //       rethrow;
-// //     }
-// //   }
-// //
-// //   // Mark as posted
-// //   Future<void> markAsPosted(String id) async {
-// //     try {
-// //       final db = await dbHelper.db;
-// //       await db.update(
-// //         attendanceOutTableName,
-// //         {'posted': 1},
-// //         where: 'attendance_out_id = ?',
-// //         whereArgs: [id],
-// //       );
-// //       _postedIds.add(id);
-// //       debugPrint('✅ [REPO-OUT] Marked as posted: $id');
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error marking as posted: $e');
-// //     }
-// //   }
-// //
-// //   // Post single record to API with retry logic
-// //   Future<bool> postToAPI(AttendanceOutModel attendanceOut) async {
-// //     const int maxRetries = 2;
-// //
-// //     for (int attempt = 1; attempt <= maxRetries; attempt++) {
-// //       try {
-// //         debugPrint('🌐 [REPO-OUT] Attempt $attempt: Posting ${attendanceOut.attendance_out_id} to $_attendanceOutApi');
-// //
-// //         // ✅ FIX: Proper JSON serialization with reason field
-// //         var recordData = attendanceOut.toJson();
-// //         recordData['reason'] = attendanceOut.reason ?? 'manual';
-// //
-// //         final jsonBody = jsonEncode(recordData);
-// //         debugPrint('📤 [REPO-OUT] Request body: $jsonBody');
-// //
-// //         final response = await http.post(
-// //           Uri.parse(_attendanceOutApi),
-// //           headers: {
-// //             'Content-Type': 'application/json',
-// //             'Accept': 'application/json',
-// //           },
-// //           body: jsonBody,
-// //         ).timeout(const Duration(seconds: 15));
-// //
-// //         debugPrint('📡 [REPO-OUT] Response: ${response.statusCode}');
-// //         debugPrint('📡 [REPO-OUT] Response body: ${response.body}');
-// //
-// //         if (response.statusCode == 200 || response.statusCode == 201) {
-// //           await markAsPosted(attendanceOut.attendance_out_id!);
-// //           return true;
-// //         } else if (response.statusCode == 405) {
-// //           debugPrint('❌ [REPO-OUT] HTTP 405: Method Not Allowed - Check API endpoint URL');
-// //           debugPrint('❌ [REPO-OUT] Current endpoint: $_attendanceOutApi');
-// //           // Don't retry on 405, it's a configuration error
-// //           return false;
-// //         } else {
-// //           debugPrint('❌ Server error ${response.statusCode}: ${response.body}');
-// //         }
-// //       } catch (e) {
-// //         debugPrint('❌ Attempt $attempt failed: $e');
-// //       }
-// //     }
-// //
-// //     return false;
-// //   }
-// //
-// //   // Sync all unposted records
-// //   Future<void> syncUnposted() async {
-// //     debugPrint('🔄 [REPO-OUT] ===== STARTING SYNC =====');
-// //
-// //     if (!await isNetworkAvailable()) {
-// //       debugPrint('📴 [REPO-OUT] No internet connection. Skipping sync.');
-// //       return;
-// //     }
-// //
-// //     final unposted = await getUnPostedAttendanceOut();
-// //
-// //     if (unposted.isEmpty) {
-// //       debugPrint('📭 [REPO-OUT] No unposted attendance out records');
-// //       return;
-// //     }
-// //
-// //     debugPrint('🔄 [REPO-OUT] Syncing ${unposted.length} records');
-// //
-// //     // Deduplicate before posting
-// //     final Map<String, AttendanceOutModel> uniqueRecords = {};
-// //     for (var record in unposted) {
-// //       if (record.attendance_out_id != null) {
-// //         uniqueRecords[record.attendance_out_id.toString()] = record;
-// //       }
-// //     }
-// //
-// //     int successCount = 0;
-// //     int failCount = 0;
-// //
-// //     for (var record in uniqueRecords.values) {
-// //       // Skip if already posted in this session
-// //       if (_postedIds.contains(record.attendance_out_id.toString())) {
-// //         debugPrint('⚠️ [REPO-OUT] Skipping already posted in session: ${record.attendance_out_id}');
-// //         continue;
-// //       }
-// //
-// //       final posted = await postToAPI(record);
-// //       if (posted) {
-// //         successCount++;
-// //         _postedIds.add(record.attendance_out_id.toString());
-// //       } else {
-// //         failCount++;
-// //       }
-// //
-// //       await Future.delayed(const Duration(milliseconds: 500));
-// //     }
-// //
-// //     debugPrint('📊 [REPO-OUT] Sync results: $successCount success, $failCount failed');
-// //
-// //     // Clean duplicate records after sync
-// //     await _cleanDuplicateRecords();
-// //
-// //     debugPrint('🔄 [REPO-OUT] ===== SYNC COMPLETED =====');
-// //   }
-// //
-// //   // Delete record
-// //   Future<int> delete(String id) async {
-// //     try {
-// //       final db = await dbHelper.db;
-// //       debugPrint('🗑️ [REPO-OUT] Deleting record: $id');
-// //       return await db.delete(
-// //         attendanceOutTableName,
-// //         where: 'attendance_out_id = ?',
-// //         whereArgs: [id],
-// //       );
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error deleting record: $e');
-// //       return -1;
-// //     }
-// //   }
-// //
-// //   // Clean duplicate records from local DB
-// //   Future<void> _cleanDuplicateRecords() async {
-// //     try {
-// //       final db = await dbHelper.db;
-// //
-// //       final List<Map> allRecords = await db.query(
-// //         attendanceOutTableName,
-// //         columns: ['attendance_out_id', 'rowid'],
-// //       );
-// //
-// //       final Set<String> uniqueIds = {};
-// //       final List<int> duplicateRowIds = [];
-// //
-// //       for (var record in allRecords) {
-// //         String id = record['attendance_out_id'].toString();
-// //         int rowId = record['rowid'] as int;
-// //         if (uniqueIds.contains(id)) {
-// //           duplicateRowIds.add(rowId);
-// //         } else {
-// //           uniqueIds.add(id);
-// //         }
-// //       }
-// //
-// //       for (int rowId in duplicateRowIds) {
-// //         await db.delete(
-// //           attendanceOutTableName,
-// //           where: 'rowid = ?',
-// //           whereArgs: [rowId],
-// //         );
-// //       }
-// //
-// //       if (duplicateRowIds.isNotEmpty) {
-// //         debugPrint('✅ [REPO-OUT] Cleaned ${duplicateRowIds.length} duplicate records');
-// //       }
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error cleaning duplicates: $e');
-// //     }
-// //   }
-// //
-// //   // Get record by ID
-// //   Future<AttendanceOutModel?> getRecordById(String id) async {
-// //     try {
-// //       final db = await dbHelper.db;
-// //       final List<Map<String, dynamic>> maps = await db.query(
-// //         attendanceOutTableName,
-// //         where: 'attendance_out_id = ?',
-// //         whereArgs: [id],
-// //       );
-// //
-// //       if (maps.isNotEmpty) {
-// //         return AttendanceOutModel.fromMap(maps.first);
-// //       }
-// //       return null;
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Error getting record by ID: $e');
-// //       return null;
-// //     }
-// //   }
-// //
-// //   // Clear posted cache
-// //   void clearPostedCache() {
-// //     _postedIds.clear();
-// //     debugPrint('🧹 [REPO-OUT] Cleared posted IDs cache');
-// //   }
-// //
-// //   // Generate unique attendance out ID
-// //   Future<String> generateAttendanceOutId() async {
-// //     final now = DateTime.now();
-// //     final formattedDate = DateFormat('ddMMMyyyyHHmmss').format(now);
-// //     String id = "ATD-OUT-$emp_id-$formattedDate";
-// //     debugPrint('🔢 [REPO-OUT] Generated ID: $id');
-// //     return id;
-// //   }
-// //
-// //   // ✅ Database health check method
-// //   Future<bool> ensureDatabaseWritable() async {
-// //     try {
-// //       final isHealthy = await dbHelper.isDatabaseHealthy();
-// //       if (!isHealthy) {
-// //         debugPrint('⚠️ [REPO-OUT] Database unhealthy, attempting repair...');
-// //         final repaired = await dbHelper.repairDatabase();
-// //         if (!repaired) {
-// //           debugPrint('❌ [REPO-OUT] Database repair failed');
-// //           return false;
-// //         }
-// //       }
-// //       return true;
-// //     } catch (e) {
-// //       debugPrint('❌ [REPO-OUT] Database check failed: $e');
-// //       return false;
-// //     }
-// //   }
-// // }
-//
-//
 // import 'dart:convert';
-// import 'package:http/http.dart' as http;
+//
 // import 'package:flutter/foundation.dart';
-// import 'package:intl/intl.dart';
+// import 'package:http/http.dart' as http;
+// import 'package:uuid/uuid.dart';
+//
 // import '../Database/db_helper.dart';
-// import '../Database/util.dart';
 // import '../Models/attendanceOut_model.dart';
-// import '../../constants.dart';
 //
 // class AttendanceOutRepository {
-//   final DBHelper dbHelper = DBHelper();
+//   final DBHelper _dbHelper = DBHelper();
 //
-//   // ✅ Track posted IDs in session to prevent duplicate posting
-//   final Set<String> _postedIds = {};
+//   static const String _postApiUrl =
+//       'http://oracle.metaxperts.net/ords/production/attendanceout/post/';
 //
-//   // ✅ FIX: Removed trailing space - verify this endpoint with your backend
-//   static const String _attendanceOutApi = 'http://oracle.metaxperts.net/ords/production/attendanceout/post';
+//   // ─────────────────────────────────────────────
+//   // READ – all records
+//   // ─────────────────────────────────────────────
+//   Future<List<AttendanceOutModel>> getAll() async {
+//     final rows = await _dbHelper.getAll(DBHelper.attendanceOutTable);
+//     return rows.map((row) => AttendanceOutModel.fromMap(row)).toList();
+//   }
 //
-//   // Get all attendance out records
-//   Future<List<AttendanceOutModel>> getAttendanceOut() async {
+//   // ─────────────────────────────────────────────
+//   // READ – unposted records only
+//   // ─────────────────────────────────────────────
+//   Future<List<AttendanceOutModel>> getUnposted() async {
+//     final rows = await _dbHelper.getUnposted(DBHelper.attendanceOutTable);
+//     return rows.map((row) => AttendanceOutModel.fromMap(row)).toList();
+//   }
+//
+//   // ─────────────────────────────────────────────
+//   // READ – single record by ID
+//   // ─────────────────────────────────────────────
+//   Future<AttendanceOutModel?> getById(String id) async {
+//     final all = await getAll();
 //     try {
-//       final db = await dbHelper.db;
-//       final List<Map<String, dynamic>> maps = await db.query(
-//         attendanceOutTableName,
-//         orderBy: 'attendance_out_date DESC',
-//       );
-//
-//       debugPrint('📊 [REPO-OUT] Raw data from AttendanceOut database: ${maps.length} records');
-//       for (var map in maps) {
-//         debugPrint("   - ID: ${map['attendance_out_id']}, Posted: ${map['posted']}");
-//       }
-//
-//       return List.generate(maps.length, (i) {
-//         return AttendanceOutModel.fromMap(maps[i]);
-//       });
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error getting attendance out: $e');
-//       return [];
+//       return all.firstWhere((r) => r.attendance_out_id?.toString() == id);
+//     } catch (_) {
+//       return null;
 //     }
 //   }
 //
-//   // Fetch from API and save locally
-//   Future<void> fetchAndSaveAttendanceOut() async {
-//     try {
-//       debugPrint('🔍 [REPO-OUT] Fetching attendance out from API...');
-//       // ✅ FIX: Removed trailing space
-//       final url = 'http://oracle.metaxperts.net/ords/production/attendanceout/get/$emp_id';
-//       final response = await http.get(
-//         Uri.parse(url),
-//         headers: {'Content-Type': 'application/json'},
-//       ).timeout(const Duration(seconds: 15));
+//   // ─────────────────────────────────────────────
+//   // INSERT
+//   // ─────────────────────────────────────────────
+//   Future<int> add(AttendanceOutModel model) async {
+//     // Auto-generate UUID if no ID supplied
+//     model.attendance_out_id ??= const Uuid().v4();
+//     model.reason ??= 'manual';
 //
-//       if (response.statusCode == 200) {
-//         final List<dynamic> data = jsonDecode(response.body);
-//         final db = await dbHelper.db;
-//
-//         int savedCount = 0;
-//         for (var item in data) {
-//           try {
-//             item['posted'] = 1;
-//             AttendanceOutModel model = AttendanceOutModel.fromMap(item);
-//
-//             final existing = await db.query(
-//               attendanceOutTableName,
-//               where: 'attendance_out_id = ?',
-//               whereArgs: [model.attendance_out_id],
-//             );
-//
-//             if (existing.isEmpty) {
-//               await db.insert(attendanceOutTableName, model.toMap());
-//               savedCount++;
-//               debugPrint("✅ [REPO-OUT] Saved from API: ${model.attendance_out_id}");
-//             } else {
-//               debugPrint("⚠️ [REPO-OUT] Skipping duplicate from API: ${model.attendance_out_id}");
-//             }
-//           } catch (e) {
-//             debugPrint("❌ [REPO-OUT] Error saving item: $e");
-//           }
-//         }
-//         debugPrint("✅ [REPO-OUT] Fetched and saved $savedCount records from API");
-//       } else {
-//         debugPrint('❌ [REPO-OUT] API fetch failed with status: ${response.statusCode}');
-//       }
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error fetching from API: $e');
-//     }
+//     return await _dbHelper.insert(
+//       DBHelper.attendanceOutTable,
+//       model.toMap(),
+//     );
 //   }
 //
-//   // Get unposted attendance out records
-//   Future<List<AttendanceOutModel>> getUnPostedAttendanceOut() async {
-//     try {
-//       final db = await dbHelper.db;
-//       final List<Map<String, dynamic>> maps = await db.query(
-//         attendanceOutTableName,
-//         where: 'posted = ?',
-//         whereArgs: [0],
-//       );
-//
-//       debugPrint('📊 [REPO-OUT] Found ${maps.length} unposted records');
-//
-//       return List.generate(maps.length, (i) {
-//         return AttendanceOutModel.fromMap(maps[i]);
-//       });
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error getting unposted records: $e');
-//       return [];
-//     }
+//   // ─────────────────────────────────────────────
+//   // MARK AS POSTED (local DB)
+//   // ─────────────────────────────────────────────
+//   Future<int> markAsPosted(String id) async {
+//     return await _dbHelper.markAsPosted(
+//       DBHelper.attendanceOutTable,
+//       'attendance_out_id',
+//       id,
+//     );
 //   }
 //
-//   // ✅ ENHANCED: Add attendance out record with database health check
-//   Future<int> addAttendanceOut(AttendanceOutModel attendanceOut) async {
-//     try {
-//       // Ensure database is writable
-//       if (!await ensureDatabaseWritable()) {
-//         debugPrint('❌ [REPO-OUT] Database not writable, cannot add record');
-//         return -1;
-//       }
-//
-//       final db = await dbHelper.db;
-//       attendanceOut.posted = 0;
-//
-//       // Check if already exists
-//       final existing = await db.query(
-//         attendanceOutTableName,
-//         where: 'attendance_out_id = ?',
-//         whereArgs: [attendanceOut.attendance_out_id],
-//       );
-//
-//       if (existing.isNotEmpty) {
-//         debugPrint('⚠️ [REPO-OUT] Duplicate record found, skipping: ${attendanceOut.attendance_out_id}');
-//         return 0;
-//       }
-//
-//       debugPrint('✅ [REPO-OUT] Adding new record: ${attendanceOut.attendance_out_id}');
-//       final result = await db.insert(attendanceOutTableName, attendanceOut.toMap());
-//       debugPrint('✅ [REPO-OUT] Insert successful with result: $result');
-//       return result;
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error adding record: $e');
-//       return -1;
-//     }
+//   // ─────────────────────────────────────────────
+//   // DELETE
+//   // ─────────────────────────────────────────────
+//   Future<int> delete(String id) async {
+//     return await _dbHelper.delete(
+//       DBHelper.attendanceOutTable,
+//       'attendance_out_id',
+//       id,
+//     );
 //   }
 //
-//   // Update attendance out record
-//   Future<int> updateAttendanceOut(AttendanceOutModel attendanceOut) async {
-//     try {
-//       final db = await dbHelper.db;
-//       debugPrint('✏️ [REPO-OUT] Updating record: ${attendanceOut.attendance_out_id}');
-//       return await db.update(
-//         attendanceOutTableName,
-//         attendanceOut.toMap(),
-//         where: 'attendance_out_id = ?',
-//         whereArgs: [attendanceOut.attendance_out_id],
-//       );
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error updating record: $e');
-//       rethrow;
-//     }
-//   }
-//
-//   // Mark as posted
-//   Future<void> markAsPosted(String id) async {
-//     try {
-//       final db = await dbHelper.db;
-//       await db.update(
-//         attendanceOutTableName,
-//         {'posted': 1},
-//         where: 'attendance_out_id = ?',
-//         whereArgs: [id],
-//       );
-//       _postedIds.add(id);
-//       debugPrint('✅ [REPO-OUT] Marked as posted: $id');
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error marking as posted: $e');
-//     }
-//   }
-//
-//   // Post single record to API with retry logic
-//   Future<bool> postToAPI(AttendanceOutModel attendanceOut) async {
+//   // ─────────────────────────────────────────────
+//   // POST single record to API (with 1 retry)
+//   // ─────────────────────────────────────────────
+//   Future<bool> _postToApi(AttendanceOutModel model) async {
 //     const int maxRetries = 2;
 //
 //     for (int attempt = 1; attempt <= maxRetries; attempt++) {
 //       try {
-//         debugPrint('🌐 [REPO-OUT] Attempt $attempt: Posting ${attendanceOut.attendance_out_id} to $_attendanceOutApi');
+//         final payload = model.toMap();
+//         payload['reason'] = model.reason ?? 'manual';
 //
-//         // ✅ FIX: Proper JSON serialization with reason field
-//         var recordData = attendanceOut.toJson();
-//         recordData['reason'] = attendanceOut.reason ?? 'manual';
+//         debugPrint(
+//             '📡 [OutRepo] Attempt $attempt – POST ${model.attendance_out_id}');
 //
-//         final jsonBody = jsonEncode(recordData);
-//         debugPrint('📤 [REPO-OUT] Request body: $jsonBody');
-//
-//         final response = await http.post(
-//           Uri.parse(_attendanceOutApi),
+//         final response = await http
+//             .post(
+//           Uri.parse(_postApiUrl),
 //           headers: {
 //             'Content-Type': 'application/json',
 //             'Accept': 'application/json',
 //           },
-//           body: jsonBody,
-//         ).timeout(const Duration(seconds: 15));
+//           body: jsonEncode(payload),
+//         )
+//             .timeout(const Duration(seconds: 15));
 //
-//         debugPrint('📡 [REPO-OUT] Response: ${response.statusCode}');
-//         debugPrint('📡 [REPO-OUT] Response body: ${response.body}');
+//         debugPrint(
+//             '📡 [OutRepo] Response ${response.statusCode} for ${model.attendance_out_id}');
 //
 //         if (response.statusCode == 200 || response.statusCode == 201) {
-//           await markAsPosted(attendanceOut.attendance_out_id!);
+//           debugPrint('✅ [OutRepo] Posted: ${model.attendance_out_id}');
 //           return true;
-//         } else if (response.statusCode == 405) {
-//           debugPrint('❌ [REPO-OUT] HTTP 405: Method Not Allowed - Check API endpoint URL');
-//           debugPrint('❌ [REPO-OUT] Current endpoint: $_attendanceOutApi');
-//           // Don't retry on 405, it's a configuration error
-//           return false;
-//         } else {
-//           debugPrint('❌ Server error ${response.statusCode}: ${response.body}');
+//         }
+//
+//         // 409 = already on server → treat as success
+//         if (response.statusCode == 409) {
+//           debugPrint(
+//               '⚠️ [OutRepo] Already on server (409): ${model.attendance_out_id}');
+//           return true;
+//         }
+//
+//         debugPrint(
+//             '❌ [OutRepo] Server error ${response.statusCode}: ${response.body}');
+//
+//         if (attempt < maxRetries) {
+//           await Future.delayed(const Duration(seconds: 1));
 //         }
 //       } catch (e) {
-//         debugPrint('❌ Attempt $attempt failed: $e');
+//         debugPrint('❌ [OutRepo] Attempt $attempt error: $e');
+//         if (attempt < maxRetries) {
+//           await Future.delayed(const Duration(seconds: 1));
+//         }
 //       }
 //     }
 //
 //     return false;
 //   }
 //
-//   // Sync all unposted records
+//   // ─────────────────────────────────────────────
+//   // SYNC – push all unposted records to API
+//   // ─────────────────────────────────────────────
 //   Future<void> syncUnposted() async {
-//     debugPrint('🔄 [REPO-OUT] ===== STARTING SYNC =====');
-//
-//     if (!await isNetworkAvailable()) {
-//       debugPrint('📴 [REPO-OUT] No internet connection. Skipping sync.');
-//       return;
-//     }
-//
-//     final unposted = await getUnPostedAttendanceOut();
+//     final unposted = await getUnposted();
 //
 //     if (unposted.isEmpty) {
-//       debugPrint('📭 [REPO-OUT] No unposted attendance out records');
+//       debugPrint('ℹ️ [OutRepo] No unposted records to sync.');
 //       return;
 //     }
 //
-//     debugPrint('🔄 [REPO-OUT] Syncing ${unposted.length} records');
+//     debugPrint(
+//         '🔄 [OutRepo] Syncing ${unposted.length} unposted record(s)...');
 //
-//     // Deduplicate before posting
-//     final Map<String, AttendanceOutModel> uniqueRecords = {};
-//     for (var record in unposted) {
-//       if (record.attendance_out_id != null) {
-//         uniqueRecords[record.attendance_out_id.toString()] = record;
-//       }
+//     // Deduplicate by ID before posting
+//     final Map<String, AttendanceOutModel> unique = {};
+//     for (final r in unposted) {
+//       final id = r.attendance_out_id?.toString() ?? '';
+//       if (id.isNotEmpty) unique[id] = r;
 //     }
 //
-//     int successCount = 0;
-//     int failCount = 0;
+//     int success = 0, failed = 0;
 //
-//     for (var record in uniqueRecords.values) {
-//       // Skip if already posted in this session
-//       if (_postedIds.contains(record.attendance_out_id.toString())) {
-//         debugPrint('⚠️ [REPO-OUT] Skipping already posted in session: ${record.attendance_out_id}');
-//         continue;
-//       }
+//     for (final model in unique.values) {
+//       final posted = await _postToApi(model);
 //
-//       final posted = await postToAPI(record);
 //       if (posted) {
-//         successCount++;
-//         _postedIds.add(record.attendance_out_id.toString());
+//         await markAsPosted(model.attendance_out_id.toString());
+//         success++;
+//         debugPrint(
+//             '✅ [OutRepo] Marked as posted: ${model.attendance_out_id}');
 //       } else {
-//         failCount++;
+//         failed++;
+//         debugPrint(
+//             '⚠️ [OutRepo] Will retry later: ${model.attendance_out_id}');
 //       }
 //
-//       await Future.delayed(const Duration(milliseconds: 500));
+//       // Small delay between requests
+//       await Future.delayed(const Duration(milliseconds: 100));
 //     }
 //
-//     debugPrint('📊 [REPO-OUT] Sync results: $successCount success, $failCount failed');
-//
-//     // Clean duplicate records after sync
-//     await _cleanDuplicateRecords();
-//
-//     debugPrint('🔄 [REPO-OUT] ===== SYNC COMPLETED =====');
-//   }
-//
-//   // Delete record
-//   Future<int> delete(String id) async {
-//     try {
-//       final db = await dbHelper.db;
-//       debugPrint('🗑️ [REPO-OUT] Deleting record: $id');
-//       return await db.delete(
-//         attendanceOutTableName,
-//         where: 'attendance_out_id = ?',
-//         whereArgs: [id],
-//       );
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error deleting record: $e');
-//       return -1;
-//     }
-//   }
-//
-//   // Clean duplicate records from local DB
-//   Future<void> _cleanDuplicateRecords() async {
-//     try {
-//       final db = await dbHelper.db;
-//
-//       final List<Map> allRecords = await db.query(
-//         attendanceOutTableName,
-//         columns: ['attendance_out_id', 'rowid'],
-//       );
-//
-//       final Set<String> uniqueIds = {};
-//       final List<int> duplicateRowIds = [];
-//
-//       for (var record in allRecords) {
-//         String id = record['attendance_out_id'].toString();
-//         int rowId = record['rowid'] as int;
-//         if (uniqueIds.contains(id)) {
-//           duplicateRowIds.add(rowId);
-//         } else {
-//           uniqueIds.add(id);
-//         }
-//       }
-//
-//       for (int rowId in duplicateRowIds) {
-//         await db.delete(
-//           attendanceOutTableName,
-//           where: 'rowid = ?',
-//           whereArgs: [rowId],
-//         );
-//       }
-//
-//       if (duplicateRowIds.isNotEmpty) {
-//         debugPrint('✅ [REPO-OUT] Cleaned ${duplicateRowIds.length} duplicate records');
-//       }
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error cleaning duplicates: $e');
-//     }
-//   }
-//
-//   // Get record by ID
-//   Future<AttendanceOutModel?> getRecordById(String id) async {
-//     try {
-//       final db = await dbHelper.db;
-//       final List<Map<String, dynamic>> maps = await db.query(
-//         attendanceOutTableName,
-//         where: 'attendance_out_id = ?',
-//         whereArgs: [id],
-//       );
-//
-//       if (maps.isNotEmpty) {
-//         return AttendanceOutModel.fromMap(maps.first);
-//       }
-//       return null;
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Error getting record by ID: $e');
-//       return null;
-//     }
-//   }
-//
-//   // Clear posted cache
-//   void clearPostedCache() {
-//     _postedIds.clear();
-//     debugPrint('🧹 [REPO-OUT] Cleared posted IDs cache');
-//   }
-//
-//   // Generate unique attendance out ID
-//   Future<String> generateAttendanceOutId() async {
-//     final now = DateTime.now();
-//     final formattedDate = DateFormat('ddMMMyyyyHHmmss').format(now);
-//     String id = "ATD-OUT-$emp_id-$formattedDate";
-//     debugPrint('🔢 [REPO-OUT] Generated ID: $id');
-//     return id;
-//   }
-//
-//   // ✅ Database health check method
-//   Future<bool> ensureDatabaseWritable() async {
-//     try {
-//       final isHealthy = await dbHelper.isDatabaseHealthy();
-//       if (!isHealthy) {
-//         debugPrint('⚠️ [REPO-OUT] Database unhealthy, attempting repair...');
-//         final repaired = await dbHelper.repairDatabase();
-//         if (!repaired) {
-//           debugPrint('❌ [REPO-OUT] Database repair failed');
-//           return false;
-//         }
-//       }
-//       return true;
-//     } catch (e) {
-//       debugPrint('❌ [REPO-OUT] Database check failed: $e');
-//       return false;
-//     }
+//     debugPrint('📊 [OutRepo] Sync done – ✅ $success posted, ❌ $failed failed');
 //   }
 // }
 
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
+
 import '../Database/db_helper.dart';
-import '../Database/util.dart';
 import '../Models/attendanceOut_model.dart';
-import '../../constants.dart';
 
 class AttendanceOutRepository {
-  final DBHelper dbHelper = DBHelper();
+  final DBHelper _dbHelper = DBHelper();
 
-  // ✅ Track posted IDs in session to prevent duplicate posting
-  final Set<String> _postedIds = {};
+  static const String _postApiUrl =
+      'http://oracle.metaxperts.net/ords/production/attendanceout/post/';
 
-  // ✅ FIX: Standard ORDS REST endpoint pattern
-  static const String _attendanceOutApi = 'http://oracle.metaxperts.net/ords/production/attendanceout/post/';
+  // ─────────────────────────────────────────────
+  // READ – all records
+  // ─────────────────────────────────────────────
+  Future<List<AttendanceOutModel>> getAll() async {
+    final rows = await _dbHelper.getAll(DBHelper.attendanceOutTable);
+    final models = rows.map((row) => AttendanceOutModel.fromMap(row)).toList();
+    debugPrint('📊 [OutRepo] getAll: found ${models.length} records');
+    return models;
+  }
 
-  // Get all attendance out records
-  Future<List<AttendanceOutModel>> getAttendanceOut() async {
+  // ─────────────────────────────────────────────
+  // READ – unposted records only
+  // ─────────────────────────────────────────────
+  Future<List<AttendanceOutModel>> getUnposted() async {
+    final rows = await _dbHelper.getUnposted(DBHelper.attendanceOutTable);
+    final models = rows.map((row) => AttendanceOutModel.fromMap(row)).toList();
+    debugPrint('📊 [OutRepo] getUnposted: found ${models.length} unposted records');
+    return models;
+  }
+
+  // ─────────────────────────────────────────────
+  // READ – single record by ID
+  // ─────────────────────────────────────────────
+  Future<AttendanceOutModel?> getById(String id) async {
+    debugPrint('🔍 [OutRepo] getById: looking for $id');
+    final all = await getAll();
     try {
-      final db = await dbHelper.db;
-      final List<Map<String, dynamic>> maps = await db.query(
-        attendanceOutTableName,
-        orderBy: 'attendance_out_date DESC',
-      );
-
-      debugPrint('📊 [REPO-OUT] Raw data from AttendanceOut database: ${maps.length} records');
-      for (var map in maps) {
-        debugPrint("   - ID: ${map['attendance_out_id']}, Posted: ${map['posted']}");
-      }
-
-      return List.generate(maps.length, (i) {
-        return AttendanceOutModel.fromMap(maps[i]);
-      });
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error getting attendance out: $e');
-      return [];
+      final found = all.firstWhere((r) => r.attendance_out_id?.toString() == id);
+      debugPrint('✅ [OutRepo] getById: found record');
+      return found;
+    } catch (_) {
+      debugPrint('❌ [OutRepo] getById: record not found');
+      return null;
     }
   }
 
-  // Fetch from API and save locally
-  Future<void> fetchAndSaveAttendanceOut() async {
+  // ─────────────────────────────────────────────
+  // INSERT
+  // ─────────────────────────────────────────────
+  Future<int> add(AttendanceOutModel model) async {
+    debugPrint('📝 [OutRepo] Adding record: ${model.attendance_out_id}');
+    debugPrint('📝 [OutRepo] Model data: ${model.toMap()}');
+
+    // Auto-generate UUID if no ID supplied
+    model.attendance_out_id ??= const Uuid().v4();
+    model.reason ??= 'manual';
+
     try {
-      debugPrint('🔍 [REPO-OUT] Fetching attendance out from API...');
-      final url = '$_attendanceOutApi/$emp_id';
-
-      debugPrint('🌐 [REPO-OUT] GET URL: $url');
-
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        final db = await dbHelper.db;
-
-        int savedCount = 0;
-        for (var item in data) {
-          try {
-            item['posted'] = 1;
-            AttendanceOutModel model = AttendanceOutModel.fromMap(item);
-
-            final existing = await db.query(
-              attendanceOutTableName,
-              where: 'attendance_out_id = ?',
-              whereArgs: [model.attendance_out_id],
-            );
-
-            if (existing.isEmpty) {
-              await db.insert(attendanceOutTableName, model.toMap());
-              savedCount++;
-              debugPrint("✅ [REPO-OUT] Saved from API: ${model.attendance_out_id}");
-            } else {
-              debugPrint("⚠️ [REPO-OUT] Skipping duplicate from API: ${model.attendance_out_id}");
-            }
-          } catch (e) {
-            debugPrint("❌ [REPO-OUT] Error saving item: $e");
-          }
-        }
-        debugPrint("✅ [REPO-OUT] Fetched and saved $savedCount records from API");
-      } else {
-        debugPrint('❌ [REPO-OUT] API fetch failed with status: ${response.statusCode}');
-        debugPrint('❌ [REPO-OUT] Response: ${response.body}');
-      }
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error fetching from API: $e');
-    }
-  }
-
-  // Get unposted attendance out records
-  Future<List<AttendanceOutModel>> getUnPostedAttendanceOut() async {
-    try {
-      final db = await dbHelper.db;
-      final List<Map<String, dynamic>> maps = await db.query(
-        attendanceOutTableName,
-        where: 'posted = ?',
-        whereArgs: [0],
+      final result = await _dbHelper.insert(
+        DBHelper.attendanceOutTable,
+        model.toMap(),
       );
-
-      debugPrint('📊 [REPO-OUT] Found ${maps.length} unposted records');
-
-      return List.generate(maps.length, (i) {
-        return AttendanceOutModel.fromMap(maps[i]);
-      });
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error getting unposted records: $e');
-      return [];
-    }
-  }
-
-  // ✅ ENHANCED: Add attendance out record with database health check
-  Future<int> addAttendanceOut(AttendanceOutModel attendanceOut) async {
-    try {
-      // Ensure database is writable
-      if (!await ensureDatabaseWritable()) {
-        debugPrint('❌ [REPO-OUT] Database not writable, cannot add record');
-        return -1;
-      }
-
-      final db = await dbHelper.db;
-      attendanceOut.posted = 0;
-
-      // Check if already exists
-      final existing = await db.query(
-        attendanceOutTableName,
-        where: 'attendance_out_id = ?',
-        whereArgs: [attendanceOut.attendance_out_id],
-      );
-
-      if (existing.isNotEmpty) {
-        debugPrint('⚠️ [REPO-OUT] Duplicate record found, skipping: ${attendanceOut.attendance_out_id}');
-        return 0;
-      }
-
-      debugPrint('✅ [REPO-OUT] Adding new record: ${attendanceOut.attendance_out_id}');
-      final result = await db.insert(attendanceOutTableName, attendanceOut.toMap());
-      debugPrint('✅ [REPO-OUT] Insert successful with result: $result');
+      debugPrint('✅ [OutRepo] Insert successful, result: $result');
       return result;
     } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error adding record: $e');
-      return -1;
-    }
-  }
-
-  // Update attendance out record
-  Future<int> updateAttendanceOut(AttendanceOutModel attendanceOut) async {
-    try {
-      final db = await dbHelper.db;
-      debugPrint('✏️ [REPO-OUT] Updating record: ${attendanceOut.attendance_out_id}');
-      return await db.update(
-        attendanceOutTableName,
-        attendanceOut.toMap(),
-        where: 'attendance_out_id = ?',
-        whereArgs: [attendanceOut.attendance_out_id],
-      );
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error updating record: $e');
+      debugPrint('❌ [OutRepo] Insert failed: $e');
       rethrow;
     }
   }
 
-  // Mark as posted
-  Future<void> markAsPosted(String id) async {
-    try {
-      final db = await dbHelper.db;
-      await db.update(
-        attendanceOutTableName,
-        {'posted': 1},
-        where: 'attendance_out_id = ?',
-        whereArgs: [id],
-      );
-      _postedIds.add(id);
-      debugPrint('✅ [REPO-OUT] Marked as posted: $id');
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error marking as posted: $e');
-    }
+  // ─────────────────────────────────────────────
+  // MARK AS POSTED (local DB)
+  // ─────────────────────────────────────────────
+  Future<int> markAsPosted(String id) async {
+    debugPrint('📝 [OutRepo] Marking as posted: $id');
+    final result = await _dbHelper.markAsPosted(
+      DBHelper.attendanceOutTable,
+      'attendance_out_id',
+      id,
+    );
+    debugPrint('✅ [OutRepo] Mark as posted result: $result');
+    return result;
   }
 
-  // ✅ FIX: Post single record to API with CORRECT field mapping
-  Future<bool> postToAPI(AttendanceOutModel attendanceOut) async {
+  // ─────────────────────────────────────────────
+  // DELETE
+  // ─────────────────────────────────────────────
+  Future<int> delete(String id) async {
+    debugPrint('🗑️ [OutRepo] Deleting: $id');
+    final result = await _dbHelper.delete(
+      DBHelper.attendanceOutTable,
+      'attendance_out_id',
+      id,
+    );
+    debugPrint('✅ [OutRepo] Delete result: $result');
+    return result;
+  }
+
+  // ─────────────────────────────────────────────
+  // POST single record to API (with 1 retry)
+  // ─────────────────────────────────────────────
+  Future<bool> _postToApi(AttendanceOutModel model) async {
     const int maxRetries = 2;
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        debugPrint('🌐 [REPO-OUT] Attempt $attempt: Posting ${attendanceOut.attendance_out_id}');
-        debugPrint('🌐 [REPO-OUT] URL: $_attendanceOutApi');
+        final payload = model.toMap();
+        payload['reason'] = model.reason ?? 'manual';
 
-        // ✅ Build JSON payload matching server-side PL/SQL parameter names
-        final Map<String, dynamic> apiPayload = attendanceOut.toJson();
+        debugPrint(
+            '📡 [OutRepo] Attempt $attempt – POST ${model.attendance_out_id}');
+        debugPrint('📡 [OutRepo] Payload: $payload');
 
-        final jsonBody = jsonEncode(apiPayload);
-        debugPrint('📤 [REPO-OUT] Request body: $jsonBody');
-
-        final response = await http.post(
-          Uri.parse(_attendanceOutApi),
+        final response = await http
+            .post(
+          Uri.parse(_postApiUrl),
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
-          body: jsonBody,
-        ).timeout(const Duration(seconds: 15));
+          body: jsonEncode(payload),
+        )
+            .timeout(const Duration(seconds: 15));
 
-        debugPrint('📡 [REPO-OUT] Response Status: ${response.statusCode}');
-        debugPrint('📡 [REPO-OUT] Response Body: ${response.body}');
+        debugPrint(
+            '📡 [OutRepo] Response ${response.statusCode} for ${model.attendance_out_id}');
+        debugPrint('📡 [OutRepo] Response body: ${response.body}');
 
         if (response.statusCode == 200 || response.statusCode == 201) {
-          await markAsPosted(attendanceOut.attendance_out_id!);
-          debugPrint('✅ [REPO-OUT] Successfully posted to API');
+          debugPrint('✅ [OutRepo] Posted: ${model.attendance_out_id}');
           return true;
-        } else if (response.statusCode == 404) {
-          debugPrint('❌ [REPO-OUT] HTTP 404: Endpoint not found');
+        }
 
-          // Try with trailing slash
-          final response2 = await http.post(
-            Uri.parse('$_attendanceOutApi/'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonBody,
-          ).timeout(const Duration(seconds: 15));
+        // 409 = already on server → treat as success
+        if (response.statusCode == 409) {
+          debugPrint(
+              '⚠️ [OutRepo] Already on server (409): ${model.attendance_out_id}');
+          return true;
+        }
 
-          if (response2.statusCode == 200 || response2.statusCode == 201) {
-            await markAsPosted(attendanceOut.attendance_out_id!);
-            debugPrint('✅ [REPO-OUT] Success with trailing slash!');
-            return true;
-          }
-          return false;
-        } else if (response.statusCode == 400) {
-          debugPrint('❌ [REPO-OUT] HTTP 400: Bad Request - Check field names');
-          return false;
-        } else {
-          debugPrint('❌ [REPO-OUT] Server error ${response.statusCode}: ${response.body}');
+        debugPrint(
+            '❌ [OutRepo] Server error ${response.statusCode}: ${response.body}');
+
+        if (attempt < maxRetries) {
+          await Future.delayed(const Duration(seconds: 1));
         }
       } catch (e) {
-        debugPrint('❌ [REPO-OUT] Attempt $attempt failed: $e');
+        debugPrint('❌ [OutRepo] Attempt $attempt error: $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(const Duration(seconds: 1));
+        }
       }
     }
 
     return false;
   }
 
-  // Sync all unposted records
+  // ─────────────────────────────────────────────
+  // SYNC – push all unposted records to API
+  // ─────────────────────────────────────────────
   Future<void> syncUnposted() async {
-    debugPrint('🔄 [REPO-OUT] ===== STARTING SYNC =====');
-
-    if (!await isNetworkAvailable()) {
-      debugPrint('📴 [REPO-OUT] No internet connection. Skipping sync.');
-      return;
-    }
-
-    final unposted = await getUnPostedAttendanceOut();
+    final unposted = await getUnposted();
 
     if (unposted.isEmpty) {
-      debugPrint('📭 [REPO-OUT] No unposted attendance out records');
+      debugPrint('ℹ️ [OutRepo] No unposted records to sync.');
       return;
     }
 
-    debugPrint('🔄 [REPO-OUT] Syncing ${unposted.length} records');
+    debugPrint(
+        '🔄 [OutRepo] Syncing ${unposted.length} unposted record(s)...');
 
-    // Deduplicate before posting
-    final Map<String, AttendanceOutModel> uniqueRecords = {};
-    for (var record in unposted) {
-      if (record.attendance_out_id != null) {
-        uniqueRecords[record.attendance_out_id.toString()] = record;
-      }
+    // Deduplicate by ID before posting
+    final Map<String, AttendanceOutModel> unique = {};
+    for (final r in unposted) {
+      final id = r.attendance_out_id?.toString() ?? '';
+      if (id.isNotEmpty) unique[id] = r;
     }
 
-    int successCount = 0;
-    int failCount = 0;
+    debugPrint('🔄 [OutRepo] After deduplication: ${unique.length} unique records');
 
-    for (var record in uniqueRecords.values) {
-      // Skip if already posted in this session
-      if (_postedIds.contains(record.attendance_out_id.toString())) {
-        debugPrint('⚠️ [REPO-OUT] Skipping already posted in session: ${record.attendance_out_id}');
-        continue;
-      }
+    int success = 0, failed = 0;
 
-      final posted = await postToAPI(record);
+    for (final model in unique.values) {
+      final posted = await _postToApi(model);
+
       if (posted) {
-        successCount++;
-        _postedIds.add(record.attendance_out_id.toString());
+        await markAsPosted(model.attendance_out_id.toString());
+        success++;
+        debugPrint(
+            '✅ [OutRepo] Marked as posted: ${model.attendance_out_id}');
       } else {
-        failCount++;
+        failed++;
+        debugPrint(
+            '⚠️ [OutRepo] Will retry later: ${model.attendance_out_id}');
       }
 
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Small delay between requests
+      await Future.delayed(const Duration(milliseconds: 100));
     }
 
-    debugPrint('📊 [REPO-OUT] Sync results: $successCount success, $failCount failed');
-
-    // Clean duplicate records after sync
-    await _cleanDuplicateRecords();
-
-    debugPrint('🔄 [REPO-OUT] ===== SYNC COMPLETED =====');
-  }
-
-  // Delete record
-  Future<int> delete(String id) async {
-    try {
-      final db = await dbHelper.db;
-      debugPrint('🗑️ [REPO-OUT] Deleting record: $id');
-      return await db.delete(
-        attendanceOutTableName,
-        where: 'attendance_out_id = ?',
-        whereArgs: [id],
-      );
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error deleting record: $e');
-      return -1;
-    }
-  }
-
-  // Clean duplicate records from local DB
-  Future<void> _cleanDuplicateRecords() async {
-    try {
-      final db = await dbHelper.db;
-
-      final List<Map> allRecords = await db.query(
-        attendanceOutTableName,
-        columns: ['attendance_out_id', 'rowid'],
-      );
-
-      final Set<String> uniqueIds = {};
-      final List<int> duplicateRowIds = [];
-
-      for (var record in allRecords) {
-        String id = record['attendance_out_id'].toString();
-        int rowId = record['rowid'] as int;
-        if (uniqueIds.contains(id)) {
-          duplicateRowIds.add(rowId);
-        } else {
-          uniqueIds.add(id);
-        }
-      }
-
-      for (int rowId in duplicateRowIds) {
-        await db.delete(
-          attendanceOutTableName,
-          where: 'rowid = ?',
-          whereArgs: [rowId],
-        );
-      }
-
-      if (duplicateRowIds.isNotEmpty) {
-        debugPrint('✅ [REPO-OUT] Cleaned ${duplicateRowIds.length} duplicate records');
-      }
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error cleaning duplicates: $e');
-    }
-  }
-
-  // Get record by ID
-  Future<AttendanceOutModel?> getRecordById(String id) async {
-    try {
-      final db = await dbHelper.db;
-      final List<Map<String, dynamic>> maps = await db.query(
-        attendanceOutTableName,
-        where: 'attendance_out_id = ?',
-        whereArgs: [id],
-      );
-
-      if (maps.isNotEmpty) {
-        return AttendanceOutModel.fromMap(maps.first);
-      }
-      return null;
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Error getting record by ID: $e');
-      return null;
-    }
-  }
-
-  // Clear posted cache
-  void clearPostedCache() {
-    _postedIds.clear();
-    debugPrint('🧹 [REPO-OUT] Cleared posted IDs cache');
-  }
-
-  // Generate unique attendance out ID
-  Future<String> generateAttendanceOutId() async {
-    final now = DateTime.now();
-    final formattedDate = DateFormat('ddMMMyyyyHHmmss').format(now);
-    String id = "ATD-OUT-$emp_id-$formattedDate";
-    debugPrint('🔢 [REPO-OUT] Generated ID: $id');
-    return id;
-  }
-
-  // ✅ Database health check method
-  Future<bool> ensureDatabaseWritable() async {
-    try {
-      final isHealthy = await dbHelper.isDatabaseHealthy();
-      if (!isHealthy) {
-        debugPrint('⚠️ [REPO-OUT] Database unhealthy, attempting repair...');
-        final repaired = await dbHelper.repairDatabase();
-        if (!repaired) {
-          debugPrint('❌ [REPO-OUT] Database repair failed');
-          return false;
-        }
-      }
-      return true;
-    } catch (e) {
-      debugPrint('❌ [REPO-OUT] Database check failed: $e');
-      return false;
-    }
+    debugPrint('📊 [OutRepo] Sync done – ✅ $success posted, ❌ $failed failed');
   }
 }

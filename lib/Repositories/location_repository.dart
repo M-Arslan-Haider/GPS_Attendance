@@ -1,202 +1,177 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import '../Database/db_helper.dart';
-import '../Database/util.dart';
 import '../Models/location_model.dart';
-import '../constants.dart';
 
 class LocationRepository {
-  DBHelper dbHelper = DBHelper();
+  final DBHelper _dbHelper = DBHelper();
 
-  Future<List<LocationModel>> getLocation() async {
-    var dbClient = await dbHelper.db;
-    List<Map<String, dynamic>> maps = await dbClient.query(
-      locationTableName,
-      columns: [
-        'location_id',
-        'location_date',
-        'location_time',
-        'file_name',
-        'emp_id',
-        'booker_name',
-        'total_distance',
-        'body',
-        'posted'
-      ],
-    );
+  static const String _postApiUrl =
+      'http://oracle.metaxperts.net/ords/production/location/post/';
 
-    List<LocationModel> location =
-    maps.map((map) => LocationModel.fromMap(map)).toList();
-
-    debugPrint('Raw data from Location database:');
-    for (var map in maps) {
-      debugPrint('$map');
-    }
-
-    return location;
+  // ─────────────────────────────────────────────
+  // READ – all records
+  // ─────────────────────────────────────────────
+  Future<List<LocationModel>> getAll() async {
+    final rows = await _dbHelper.getAll(DBHelper.locationTable);
+    return rows.map((row) => LocationModel.fromMap(row)).toList();
   }
 
-  Future<void> fetchAndSaveLocation() async {
-    debugPrint('$locationApi$emp_id');
-    final response = await http.get(Uri.parse('$locationApi$emp_id'));
-
-    if (response.statusCode == 200) {
-      List<dynamic> data = jsonDecode(response.body);
-      var dbClient = await dbHelper.db;
-
-      for (var item in data) {
-        item['posted'] = 1;
-        LocationModel model = LocationModel.fromMap(Map<String, dynamic>.from(item));
-        await dbClient.insert(locationTableName, model.toMap());
-      }
-    } else {
-      throw Exception('Failed to fetch location data: ${response.statusCode}');
-    }
+  // ─────────────────────────────────────────────
+  // READ – unposted records only
+  // ─────────────────────────────────────────────
+  Future<List<LocationModel>> getUnposted() async {
+    final rows = await _dbHelper.getUnposted(DBHelper.locationTable);
+    return rows.map((row) => LocationModel.fromMap(row)).toList();
   }
 
-  Future<List<LocationModel>> getUnPostedLocation() async {
-    var dbClient = await dbHelper.db;
-    List<Map<String, dynamic>> maps = await dbClient.query(
-      locationTableName,
-      where: 'posted = ?',
-      whereArgs: [0],
-    );
-
-    return maps.map((map) => LocationModel.fromMap(map)).toList();
-  }
-
-  Future<void> postDataFromDatabaseToAPI() async {
+  // ─────────────────────────────────────────────
+  // READ – single record by ID
+  // ─────────────────────────────────────────────
+  Future<LocationModel?> getById(String id) async {
+    final all = await getAll();
     try {
-      var unPostedShops = await getUnPostedLocation();
-
-      if (await isNetworkAvailable()) {
-        for (var shop in unPostedShops) {
-          try {
-            await postShopToAPI(shop, shop.body!);
-            shop.posted = 1;
-            await update(shop);
-            debugPrint('Shop with id ${shop.location_id} posted and updated in local database.');
-          } catch (e) {
-            debugPrint('Failed to post shop with id ${shop.location_id}: $e');
-          }
-        }
-      } else {
-        debugPrint('Network not available. Unposted shops will remain local.');
-      }
-    } catch (e) {
-      debugPrint('Error fetching unposted shops: $e');
+      return all.firstWhere((r) => r.location_id?.toString() == id);
+    } catch (_) {
+      return null;
     }
   }
 
-  Future<void> postShopToAPI(LocationModel shop, Uint8List imageBytes) async {
+  // ─────────────────────────────────────────────
+  // INSERT
+  // ─────────────────────────────────────────────
+  Future<int> add(LocationModel model) async {
+    model.location_id ??= const Uuid().v4();
+
+    return await _dbHelper.insert(
+      DBHelper.locationTable,
+      model.toMap(),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // MARK AS POSTED (local DB)
+  // ─────────────────────────────────────────────
+  Future<int> markAsPosted(String id) async {
+    return await _dbHelper.markAsPosted(
+      DBHelper.locationTable,
+      'location_id',
+      id,
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // DELETE
+  // ─────────────────────────────────────────────
+  Future<int> delete(String id) async {
+    return await _dbHelper.delete(
+      DBHelper.locationTable,
+      'location_id',
+      id,
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // POST single record to API (multipart/form-data + GPX body)
+  // ─────────────────────────────────────────────
+  Future<bool> _postToApi(LocationModel model) async {
+    if (model.body == null) {
+      debugPrint('⚠️ [LocRepo] No body (GPX) for ${model.location_id} — skipping');
+      return false;
+    }
+
     try {
-      debugPrint('Updated Shop Post API: $locationApi');
+      final fields = model.toMap();
 
-      var shopData = shop.toMap();
-
-      var request = http.MultipartRequest('POST', Uri.parse(locationApi));
-
-      request.headers['Content-Type'] = 'multipart/form-data';
-      request.headers['Accept'] = 'application/json';
-
-      request.fields.addAll(
-        shopData.map((key, value) => MapEntry(key, value.toString())),
-      );
-
-      if (imageBytes.isNotEmpty) {
-        request.files.add(
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse(_postApiUrl),
+      )
+        ..headers['Accept'] = 'application/json'
+        ..fields.addAll(
+          fields.map((k, v) => MapEntry(k, v?.toString() ?? '')),
+        )
+        ..files.add(
           http.MultipartFile.fromBytes(
             'body',
-            imageBytes,
+            model.body!,
             contentType: MediaType('application', 'gpx+xml'),
           ),
         );
+
+      debugPrint('📡 [LocRepo] POST ${model.location_id}');
+
+      final streamed = await request.send()
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint('📡 [LocRepo] Response ${streamed.statusCode} for ${model.location_id}');
+
+      if (streamed.statusCode == 200 || streamed.statusCode == 201) {
+        debugPrint('✅ [LocRepo] Posted: ${model.location_id}');
+        return true;
       }
 
-      final response = await request.send();
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('Shop data posted successfully: ${shop.toMap()}');
-        await delete(shop.location_id!);
-        debugPrint('location_id with id ${shop.location_id} deleted from local database.');
-      } else {
-        final responseBody = await response.stream.bytesToString();
-        throw Exception('Server error: ${response.statusCode}, $responseBody');
+      // 409 = already on server
+      if (streamed.statusCode == 409) {
+        debugPrint('⚠️ [LocRepo] Already on server (409): ${model.location_id}');
+        return true;
       }
+
+      final body = await streamed.stream.bytesToString();
+      debugPrint('❌ [LocRepo] Server error ${streamed.statusCode}: $body');
+      return false;
     } catch (e) {
-      debugPrint('Error posting shop data: $e');
-      throw Exception('Failed to post data: $e');
+      debugPrint('❌ [LocRepo] Network error for ${model.location_id}: $e');
+      return false;
     }
   }
 
-  Future<int> add(LocationModel locationModel) async {
-    var dbClient = await dbHelper.db;
-    return await dbClient.insert(locationTableName, locationModel.toMap());
-  }
+  // ─────────────────────────────────────────────
+  // SYNC – push all unposted records to API
+  //        On success → mark as posted in local DB
+  //        (delete behaviour preserved as option)
+  // ─────────────────────────────────────────────
+  Future<void> syncUnposted({bool deleteAfterPost = false}) async {
+    final unposted = await getUnposted();
 
-  Future<int> update(LocationModel locationModel) async {
-    var dbClient = await dbHelper.db;
-    return await dbClient.update(
-      locationTableName,
-      locationModel.toMap(),
-      where: 'location_id = ?',
-      whereArgs: [locationModel.location_id],
-    );
-  }
+    if (unposted.isEmpty) {
+      debugPrint('ℹ️ [LocRepo] No unposted location records to sync.');
+      return;
+    }
 
-  Future<int> delete(String id) async {
-    var dbClient = await dbHelper.db;
-    return await dbClient.delete(
-      locationTableName,
-      where: 'location_id = ?',
-      whereArgs: [id],
-    );
-  }
+    debugPrint('🔄 [LocRepo] Syncing ${unposted.length} location record(s)...');
 
-  Future<void> serialNumberGeneratorApi() async {
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
+    int success = 0, failed = 0;
 
-      final response = await http.get(
-        Uri.parse('$locationApi$emp_id'),
-        headers: {'Accept': 'application/json'},
-      );
+    for (final model in unposted) {
+      final id = model.location_id?.toString();
+      if (id == null || id.isEmpty) {
+        debugPrint('⚠️ [LocRepo] Skipping record with null/empty ID');
+        continue;
+      }
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      final posted = await _postToApi(model);
 
-        int? maxSerial;
-        if (data is List && data.isNotEmpty) {
-          maxSerial = data
-              .map((e) => int.tryParse(
-              e['max(location_id)']?.toString().split('-').last ?? '0') ?? 0)
-              .reduce((a, b) => a > b ? a : b);
-        } else if (data is Map) {
-          maxSerial = int.tryParse(
-              data['max(location_id)']?.toString().split('-').last ?? '0');
-        }
-
-        if (maxSerial != null && maxSerial > (locationHighestSerial ?? 0)) {
-          locationHighestSerial = maxSerial + 1;
+      if (posted) {
+        if (deleteAfterPost) {
+          await delete(id);
+          debugPrint('🗑️ [LocRepo] Deleted after post: $id');
         } else {
-          locationHighestSerial = (locationHighestSerial ?? 0) + 1;
+          await markAsPosted(id);
+          debugPrint('✅ [LocRepo] Marked as posted: $id');
         }
+        success++;
       } else {
-        locationHighestSerial = (locationHighestSerial ?? 0) + 1;
+        failed++;
+        debugPrint('⚠️ [LocRepo] Will retry later: $id');
       }
-
-      await prefs.reload();
-      await prefs.setInt('locationHighestSerial', locationHighestSerial!);
-      debugPrint('Location serial updated: $locationHighestSerial');
-    } catch (e) {
-      debugPrint('Error in serialNumberGeneratorApi: $e');
-      locationHighestSerial = (locationHighestSerial ?? 0) + 1;
     }
+
+    debugPrint('📊 [LocRepo] Sync done — ✅ $success posted, ❌ $failed failed');
   }
 }

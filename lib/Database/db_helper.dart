@@ -10,6 +10,7 @@ class DBHelper {
   static const String attendanceTable = "attendance_in";
   static const String attendanceOutTable = "attendance_out";
   static const String locationTable = "location";
+  static const String leaveTable = "leave_application";
 
   Future<Database> get database async {
 
@@ -80,6 +81,30 @@ class DBHelper {
       body BLOB
     )
     ''');
+
+    /// Leave Application
+    await db.execute('''
+CREATE TABLE IF NOT EXISTS $leaveTable(
+  id TEXT PRIMARY KEY,
+  leave_id TEXT UNIQUE,
+  emp_id TEXT,
+  emp_name TEXT,
+  job_role TEXT,
+  leave_type TEXT,
+  start_date TEXT,
+  end_date TEXT,
+  total_days INTEGER,
+  is_half_day INTEGER DEFAULT 0,
+  reason TEXT,
+  attachment_data BLOB,
+  attachment_image TEXT,
+  application_date TEXT,
+  application_time TEXT,
+  status TEXT DEFAULT 'pending',
+  posted INTEGER DEFAULT 0,
+  has_attachment INTEGER DEFAULT 0
+)
+''');
   }
 
   /// INSERT

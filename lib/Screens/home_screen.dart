@@ -99,8 +99,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.fromLTRB(18, 22, 18, 40),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 1),
                     TimerCard(),
+                    const SizedBox(height: 25),
+                    _buildQuickActions(horizontalPadding: 5),
+
                   ]),
                 ),
               ),
@@ -111,12 +114,103 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildQuickActions({required double horizontalPadding}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Quick Actions",
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _actionTile(
+                icon: Icons.calendar_month_rounded,
+                label: 'Leave',
+                onTap: () => Get.to(() => ()),
+              ),
+              const SizedBox(width: 12),
+              _actionTile(
+                icon: Icons.task_alt_rounded,
+                label: 'Tasks',
+                onTap: () => Get.to(() => ()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 100,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4354E8).withOpacity(0.10),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEBEEFD),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 26,
+                  color: const Color(0xFF4354E8),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF111827),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
   // ─── HEADER ────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.white, Color(0xFF3A54CC)],
+          colors: [Colors.white, Color(0xFF4354E8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

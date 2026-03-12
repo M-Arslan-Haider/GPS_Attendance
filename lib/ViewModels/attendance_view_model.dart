@@ -1,3 +1,4 @@
+//
 // import 'dart:async';
 // import 'dart:io';
 //
@@ -139,6 +140,20 @@
 //   }) async {
 //     debugPrint('🎯 [VM] ===== CLOCK-IN STARTED =====');
 //
+//     // ✅ FIX: If caller didn't pass employee data, fall back to SharedPreferences.
+//     // This guarantees emp_id/emp_name/job are never empty regardless of which
+//     // call-site invokes clockIn().
+//     if (empId.isEmpty || empName.isEmpty || job.isEmpty) {
+//       final prefs = await SharedPreferences.getInstance();
+//       // emp_id is stored as int by LoginModels — _safeReadString handles that
+//       if (empId.isEmpty)   empId   = _safeReadString(prefs, 'emp_id');
+//       // emp_name and job: try the LoginModels key first, then common alternatives
+//       if (empName.isEmpty) empName = _safeReadStringFallback(prefs, ['emp_name', 'empName', 'employee_name', 'name', 'userName', 'user_name']);
+//       if (job.isEmpty)     job     = _safeReadStringFallback(prefs, ['job', 'designation', 'role', 'emp_job', 'position', 'jobTitle']);
+//       if (city.isEmpty)    city    = _safeReadStringFallback(prefs, ['city', 'emp_city', 'location']);
+//       debugPrint('👤 [VM] Resolved from prefs — empId=$empId | empName=$empName | job=$job | city=$city');
+//     }
+//
 //     // 1. Guard: already clocked in
 //     if (isClockedIn.value) {
 //       Get.snackbar('Already Clocked In', 'You are already clocked in',
@@ -191,16 +206,30 @@
 //
 //   /// Format: ATD-{empId}-{dd}-{MMM}-{serial}
 //   /// Example: ATD-EMP001-11-Mar-001
+//   // String _buildAttendanceId({required String empId}) {
+//   //   final DateTime now     = DateTime.now();
+//   //   final String   day     = DateFormat('dd').format(now);
+//   //   final String   month   = DateFormat('MMM').format(now);
+//   //   final String   serial  = _serialCounter.toString().padLeft(3, '0');
+//   //   final String   empPart = empId.isNotEmpty ? empId : 'EMP';
+//   //   final String   id      = 'ATD-$empPart-$day-$month-$serial';
+//   //   debugPrint('🆔 [VM] Generated ID: $id');
+//   //   return id;
+//   // }
+//
 //   String _buildAttendanceId({required String empId}) {
-//     final DateTime now     = DateTime.now();
-//     final String   day     = DateFormat('dd').format(now);
-//     final String   month   = DateFormat('MMM').format(now);
-//     final String   serial  = _serialCounter.toString().padLeft(3, '0');
-//     final String   empPart = empId.isNotEmpty ? empId : 'EMP';
-//     final String   id      = 'ATD-$empPart-$day-$month-$serial';
+//     final DateTime now = DateTime.now();
+//     final String day = DateFormat('dd').format(now);
+//     final String month = DateFormat('MMM').format(now);
+//     final String serial = _serialCounter.toString().padLeft(3, '0');
+//
+//     final String empPart = empId.isNotEmpty ? empId : 'EMP';
+//
+//     final String id = 'ATD-$empPart-$day-$month-$serial';
 //     debugPrint('🆔 [VM] Generated ID: $id');
 //     return id;
 //   }
+//
 //
 //   Future<bool> _idExistsInDb(String id) async {
 //     try {
@@ -412,7 +441,7 @@
 //         posted            : 0,
 //       );
 //       await addAttendance(model);
-//       debugPrint('✅ [VM] Saved to local DB: $attendanceId | time=${DateFormat('hh:mm:ss a').format(clockInNow)}');
+//       debugPrint('✅ [VM] Saved to local DB: $attendanceId | empId=$empId | empName=$empName | job=$job | time=${DateFormat('hh:mm:ss a').format(clockInNow)}');
 //
 //       // E. Increment serial for next clock-in
 //       _serialCounter++;
@@ -551,13 +580,46 @@
 //     debugPrint('🛑 [VM] Timer stopped');
 //   }
 //
+//   // ── Safe Prefs Readers ───────────────────────────────────────────────────
+//
+//   /// Read one key regardless of stored type (int, String, double, bool).
+//   String _safeReadString(SharedPreferences prefs, String key) {
+//     try {
+//       final dynamic raw = prefs.get(key);
+//       if (raw == null) return '';
+//       return raw.toString();
+//     } catch (_) {
+//       return '';
+//     }
+//   }
+//
+//   /// Try each key in [keys] in order; return the first non-empty value.
+//   /// Handles mismatches between login key names and attendance key names.
+//   String _safeReadStringFallback(SharedPreferences prefs, List<String> keys) {
+//     for (final key in keys) {
+//       try {
+//         final dynamic raw = prefs.get(key);
+//         if (raw != null) {
+//           final String val = raw.toString().trim();
+//           if (val.isNotEmpty) {
+//             debugPrint('   ✅ [VM PREFS] "$key" = "$val"');
+//             return val;
+//           }
+//         }
+//       } catch (_) {}
+//     }
+//     debugPrint('   ⚠️ [VM PREFS] None found in: $keys');
+//     return '';
+//   }
+//
 //   Future<void> _saveTotalTime(String time) async {
 //     final prefs = await SharedPreferences.getInstance();
 //     await prefs.setString(_keyTotalTime, time);
 //   }
 // }
 
-//fo posting
+///12-mar
+
 import 'dart:async';
 import 'dart:io';
 
@@ -623,33 +685,16 @@ class AttendanceViewModel extends GetxController {
   // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> _initSerialCounter() async {
-    final prefs        = await SharedPreferences.getInstance();
-    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final String month = DateFormat('MMM').format(DateTime.now());
-    final String lastDay = prefs.getString('lastAttendanceDay') ?? '';
+    final prefs = await SharedPreferences.getInstance();
 
-    if (lastDay != today) {
-      _serialCounter = 1;
-      _currentMonth  = month;
-      await prefs.setInt('attendanceSerialCounter', _serialCounter);
-      await prefs.setString('attendanceCurrentMonth', _currentMonth);
-      await prefs.setString('lastAttendanceDay', today);
-      debugPrint('🔄 [VM] New day — serial counter reset to 1');
-    } else {
-      _serialCounter = prefs.getInt('attendanceSerialCounter') ?? 1;
-      _currentMonth  = prefs.getString('attendanceCurrentMonth') ?? month;
-      if (_currentMonth != month) {
-        _serialCounter = 1;
-        _currentMonth  = month;
-      }
-      debugPrint('[VM] Loaded serial counter: $_serialCounter');
-    }
+    _serialCounter = prefs.getInt('attendanceSerialCounter') ?? 1;
+
+    debugPrint('🔢 [VM] Loaded serial counter: $_serialCounter');
   }
 
   Future<void> _saveSerialCounter() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('attendanceSerialCounter', _serialCounter);
-    await prefs.setString('attendanceCurrentMonth', _currentMonth);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -777,16 +822,17 @@ class AttendanceViewModel extends GetxController {
   // }
 
   String _buildAttendanceId({required String empId}) {
-    final DateTime now = DateTime.now();
-    final String day = DateFormat('dd').format(now);
-    final String month = DateFormat('MMM').format(now);
-    final String serial = _serialCounter.toString().padLeft(3, '0');
+    final now = DateTime.now();
 
-    // Always use 'EMP' as the constant prefix, ignoring the actual empId
-    const String empPart = 'EMP';
+    final day = DateFormat('dd').format(now);
+    final month = DateFormat('MMM').format(now);
 
-    final String id = 'ATD-$empPart-$day-$month-$serial';
-    debugPrint('🆔 [VM] Generated ID: $id');
+    final serial = _serialCounter.toString().padLeft(3, '0');
+
+    final id = "ATD-EMP-$day-$month-$serial";
+
+    debugPrint("🆔 Generated ID: $id");
+
     return id;
   }
 

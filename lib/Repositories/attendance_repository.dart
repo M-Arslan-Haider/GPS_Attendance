@@ -84,11 +84,22 @@ class AttendanceRepository {
         debugPrint(
             '✅ [AttendanceRepo] Posted successfully: ${model.attendance_in_id}');
         return true;
-      } else {
-        debugPrint(
-            '❌ [AttendanceRepo] Server error ${response.statusCode}: ${response.body}');
-        return false;
       }
+
+      // ── NEW: treat duplicate-key errors as already-posted ──────────────
+      if (response.statusCode == 555 || response.statusCode == 409) {
+        final body = response.body;
+        if (body.contains('ORA-00001') || body.contains('unique constraint')) {
+          debugPrint(
+              '⚠️ [AttendanceRepo] Already exists on server (duplicate key) — marking as posted: ${model.attendance_in_id}');
+          return true; // treat as success so it gets marked posted locally
+        }
+      }
+      // ───────────────────────────────────────────────────────────────────
+
+      debugPrint(
+          '❌ [AttendanceRepo] Server error ${response.statusCode}: ${response.body}');
+      return false;
     } catch (e) {
       debugPrint('❌ [AttendanceRepo] Network error: $e');
       return false;

@@ -1,8 +1,7 @@
-// import 'package:flutter/material.dart';
 //
+// import 'package:flutter/material.dart';
 // import '../../Database/util.dart';
 //
-// /// Profile section widget.
 // class ProfileSection extends StatefulWidget {
 //   const ProfileSection({super.key});
 //
@@ -12,13 +11,12 @@
 //
 // class _ProfileSectionState extends State<ProfileSection> {
 //
-//   // ── White & Blue Theme ─────────────────────────────────────────────────────
-//   static const Color _accentBlue    = Color(0xFF1A5CFF);
-//   static const Color _accentLight   = Color(0xFFE6EDFF);
-//   static const Color _textPrimary   = Color(0xFF0A1931);
-//   static const Color _textSecondary = Color(0xFF6B7FA8);
-//   static const Color _border        = Color(0xFFD0DBEE);
-//   // ──────────────────────────────────────────────────────────────────────────
+//   // ── Colors ─────────────────────────────
+//   static const Color _containerBlue   = Color(0xFF4354E8);
+//   static const Color _textBlue        = Color(0xFF1A5CFF);
+//   static const Color _lightBlueShade  = Color(0xFFE6EDFF);
+//   static const Color _border          = Color(0xFFD0DBEE);
+//   static const Color _onlineGreen     = Color(0xFF10B981);
 //
 //   @override
 //   void initState() {
@@ -31,7 +29,6 @@
 //     if (mounted) setState(() {});
 //   }
 //
-//   /// Returns up to 2 initials from the employee name
 //   String _getInitials(String name) {
 //     final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
 //     if (parts.isEmpty) return '?';
@@ -47,16 +44,16 @@
 //     final String initials    = _getInitials(name);
 //
 //     return Padding(
-//       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
+//       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
 //       child: Container(
 //         padding: const EdgeInsets.all(16),
 //         decoration: BoxDecoration(
-//           color: Colors.white,
+//           color: Colors.white, // Background white
 //           borderRadius: BorderRadius.circular(20),
-//           border: Border.all(color: _border, width: 1.2),
+//           border: Border.all(color: _border, width: 1.5),
 //           boxShadow: [
 //             BoxShadow(
-//               color: _accentBlue.withOpacity(0.08),
+//               color: _containerBlue.withOpacity(0.1),
 //               blurRadius: 20,
 //               offset: const Offset(0, 8),
 //             ),
@@ -64,18 +61,18 @@
 //         ),
 //         child: Row(
 //           children: [
-//             // ── Left: text info ──────────────────────────────────────────
+//             // ── Left: Info ───────────────────────────
 //             Expanded(
 //               child: Column(
 //                 crossAxisAlignment: CrossAxisAlignment.start,
 //                 children: [
-//                   // App name badge
+//                   // App badge
 //                   Container(
 //                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
 //                     decoration: BoxDecoration(
-//                       color: _accentLight,
+//                       color: _lightBlueShade,
 //                       borderRadius: BorderRadius.circular(20),
-//                       border: Border.all(color: _accentBlue.withOpacity(0.25)),
+//                       border: Border.all(color: _containerBlue.withOpacity(0.3)),
 //                     ),
 //                     child: Row(
 //                       mainAxisSize: MainAxisSize.min,
@@ -83,69 +80,66 @@
 //                         Container(
 //                           width: 6,
 //                           height: 6,
-//                           decoration: const BoxDecoration(
+//                           decoration: BoxDecoration(
 //                             shape: BoxShape.circle,
-//                             color: _accentBlue,
+//                             color: _containerBlue,
 //                           ),
 //                         ),
 //                         const SizedBox(width: 6),
 //                         const Text(
-//                           'Attendance System',
+//                           'GPS Attendance System',
 //                           style: TextStyle(
 //                             fontSize: 11,
 //                             fontWeight: FontWeight.w700,
-//                             color: _accentBlue,
+//                             color: Color(0xFF4354E8),
 //                             letterSpacing: 0.3,
 //                           ),
 //                         ),
 //                       ],
 //                     ),
 //                   ),
-//                   const SizedBox(height: 10),
-//
-//                   // Employee name
+//                   const SizedBox(height: 12),
+//                   // Name
 //                   Text(
 //                     name,
-//                     style: const TextStyle(
-//                       fontSize: 16,
+//                     style: TextStyle(
+//                       fontSize: 18,
 //                       fontWeight: FontWeight.w800,
-//                       color: _textPrimary,
+//                       color: _textBlue,
 //                       letterSpacing: -0.3,
 //                     ),
 //                     maxLines: 1,
 //                     overflow: TextOverflow.ellipsis,
 //                   ),
-//                   const SizedBox(height: 5),
-//
+//                   const SizedBox(height: 8),
 //                   // ID row
 //                   Row(
 //                     children: [
-//                       const Icon(Icons.badge_outlined, size: 13, color: _textSecondary),
+//                       const Icon(Icons.badge_outlined, size: 14, color: _textBlue),
 //                       const SizedBox(width: 4),
 //                       Text(
 //                         'ID: $id',
-//                         style: const TextStyle(
+//                         style: TextStyle(
 //                           fontSize: 13,
 //                           fontWeight: FontWeight.w600,
-//                           color: _textSecondary,
+//                           color: _textBlue.withOpacity(0.85),
 //                         ),
 //                       ),
 //                     ],
 //                   ),
-//                   const SizedBox(height: 4),
-//
+//                   const SizedBox(height: 6),
 //                   // Designation row
 //                   Row(
 //                     children: [
-//                       const Icon(Icons.work_outline_rounded, size: 13, color: _textSecondary),
+//                       const Icon(Icons.work_outline_rounded, size: 14, color: _textBlue),
 //                       const SizedBox(width: 4),
 //                       Flexible(
 //                         child: Text(
 //                           designation,
-//                           style: const TextStyle(
+//                           style: TextStyle(
 //                             fontSize: 13,
 //                             fontWeight: FontWeight.w600,
-//                             color: _textSecondary,
+//                             color: _textBlue.withOpacity(0.85),
 //                           ),
 //                           maxLines: 1,
 //                           overflow: TextOverflow.ellipsis,
@@ -157,20 +151,20 @@
 //               ),
 //             ),
 //
-//             const SizedBox(width: 12),
+//             const SizedBox(width: 16),
 //
-//             // ── Right: circular avatar with initials ─────────────────────
+//             // ── Right: Avatar ─────────────────────────
 //             Container(
-//               width: 72,
-//               height: 72,
+//               width: 76,
+//               height: 76,
 //               decoration: BoxDecoration(
-//                 color: _accentBlue,
 //                 shape: BoxShape.circle,
+//                 color: _containerBlue, // Blue avatar
 //                 boxShadow: [
 //                   BoxShadow(
-//                     color: _accentBlue.withOpacity(0.30),
-//                     blurRadius: 14,
-//                     offset: const Offset(0, 5),
+//                     color: _containerBlue.withOpacity(0.3),
+//                     blurRadius: 12,
+//                     offset: const Offset(0, 4),
 //                   ),
 //                 ],
 //               ),
@@ -179,7 +173,7 @@
 //                   initials,
 //                   style: const TextStyle(
 //                     color: Colors.white,
-//                     fontSize: 24,
+//                     fontSize: 26,
 //                     fontWeight: FontWeight.w800,
 //                     letterSpacing: 1,
 //                   ),
@@ -192,6 +186,7 @@
 //     );
 //   }
 // }
+//
 
 import 'package:flutter/material.dart';
 import '../../Database/util.dart';
@@ -204,11 +199,6 @@ class ProfileSection extends StatefulWidget {
 }
 
 class _ProfileSectionState extends State<ProfileSection> {
-
-  static const Color _accentBlue    = Color(0xFF4354E8);
-  static const Color _accentLight   = Color(0xFFEBEEFD);
-  static const Color _textPrimary   = Color(0xFF111827);
-  static const Color _textSecondary = Color(0xFF6B7280);
 
   @override
   void initState() {
@@ -236,252 +226,46 @@ class _ProfileSectionState extends State<ProfileSection> {
     final String initials    = _getInitials(name);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
       child: Container(
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [
-              _accentBlue,
-              const Color(0xFF6270F0),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: _accentBlue.withOpacity(0.35),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Stack(
+        child: Row(
           children: [
-            // ── Decorative background circle ─────────────────────────────
-            Positioned(
-              top: -20,
-              right: 80,
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.06),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "GPS Attendance System",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text("ID: $id",
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text("Name: $name",
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text("Job: $designation",
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const Spacer(),
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: const Color(0xFF4354E8),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/icons/pngicon.png',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
                 ),
               ),
-            ),
-            Positioned(
-              bottom: -30,
-              left: 20,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.05),
-                ),
-              ),
-            ),
-
-            // ── Main content ─────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  // ── Left: Info ────────────────────────────────────────
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // App badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'GPS Attendance System',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // Name
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        // ID row
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(
-                                Icons.badge_outlined,
-                                size: 12,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'ID: $id',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white.withOpacity(0.85),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 6),
-
-                        // Designation row
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(
-                                Icons.work_outline_rounded,
-                                size: 12,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                designation,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white.withOpacity(0.85),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 16),
-
-                  // ── Right: Avatar ─────────────────────────────────────
-                  Column(
-                    children: [
-                      Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.15),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.5),
-                            width: 2.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.15),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(
-                            initials,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Online indicator
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withOpacity(0.25),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: const Color(0xFF10B981).withOpacity(0.5),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF10B981),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'Active',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF10B981),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            )
           ],
         ),
       ),

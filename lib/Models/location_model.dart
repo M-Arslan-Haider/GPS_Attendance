@@ -1,3 +1,81 @@
+// import 'dart:convert';
+// import 'dart:typed_data';
+// import 'package:intl/intl.dart';
+//
+// class LocationModel {
+//   dynamic location_id;
+//   String? emp_id;         // employee id (table: emp_id)
+//   String? emp_name;       // employee name (table: emp_name)
+//   int posted;             // 0 = not posted, 1 = posted
+//   String? file_name;
+//   Uint8List? body;
+//   dynamic total_distance;
+//   DateTime? location_date;
+//   DateTime? location_time;
+//
+//   LocationModel({
+//     this.location_id,
+//     this.emp_id,
+//     this.emp_name,
+//     this.posted = 0,
+//     this.file_name,
+//     this.body,
+//     this.total_distance,
+//     this.location_date,
+//     this.location_time,
+//   });
+//
+//   // ----------------------
+//   // CREATE MODEL FROM DB / API MAP
+//   // ----------------------
+//   factory LocationModel.fromMap(Map<dynamic, dynamic> json) {
+//     final DateFormat dateFormat = DateFormat('dd-MMM-yyyy');
+//     final DateFormat timeFormat = DateFormat('HH:mm:ss');
+//
+//     return LocationModel(
+//       location_id: json['location_id'],
+//       emp_id: json['emp_id'],
+//       emp_name: json['emp_name'],
+//       posted: json['posted'] ?? 0,
+//       file_name: json['file_name'],
+//       total_distance: json['total_distance'],
+//
+//       location_date: json['location_date'] != null
+//           ? dateFormat.parse(json['location_date'].toString())
+//           : null,
+//
+//       location_time: json['location_time'] != null
+//           ? timeFormat.parse(json['location_time'].toString())
+//           : null,
+//
+//       body: json['body'] != null && json['body'].toString().isNotEmpty
+//           ? Uint8List.fromList(base64Decode(json['body'].toString()))
+//           : null,
+//     );
+//   }
+//
+//   // ----------------------
+//   // CONVERT MODEL TO DB / API MAP
+//   // ----------------------
+//   Map<String, dynamic> toMap() {
+//     return {
+//       'location_id': location_id,
+//       'emp_id': emp_id,
+//       'emp_name': emp_name,
+//       'posted': posted,
+//       'file_name': file_name,
+//       'total_distance': total_distance,
+//       'location_date': location_date != null
+//           ? DateFormat('dd-MMM-yyyy').format(location_date!)
+//           : DateFormat('dd-MMM-yyyy').format(DateTime.now()),
+//       'location_time': location_time != null
+//           ? DateFormat('HH:mm:ss').format(location_time!)
+//           : DateFormat('HH:mm:ss').format(DateTime.now()),
+//       'body': body != null ? base64Encode(body!) : null,
+//     };
+//   }
+// }
+
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
@@ -29,26 +107,45 @@ class LocationModel {
   // CREATE MODEL FROM DB / API MAP
   // ----------------------
   factory LocationModel.fromMap(Map<dynamic, dynamic> json) {
-    final DateFormat dateFormat = DateFormat('dd-MMM-yyyy');
-    final DateFormat timeFormat = DateFormat('HH:mm:ss');
+    // ✅ FIX: Support both stored formats when reading back from local DB
+    // DB stores as MM/dd/yyyy (new), but old rows may still have dd-MMM-yyyy
+    final DateFormat dateFormatNew = DateFormat('MM/dd/yyyy');
+    final DateFormat dateFormatOld = DateFormat('dd-MMM-yyyy');
+    final DateFormat timeFormat    = DateFormat('HH:mm:ss');
+
+    DateTime? parsedDate;
+    if (json['location_date'] != null) {
+      final raw = json['location_date'].toString();
+      try {
+        parsedDate = dateFormatNew.parse(raw);
+      } catch (_) {
+        try {
+          parsedDate = dateFormatOld.parse(raw);
+        } catch (_) {
+          parsedDate = null;
+        }
+      }
+    }
+
+    DateTime? parsedTime;
+    if (json['location_time'] != null) {
+      try {
+        parsedTime = timeFormat.parse(json['location_time'].toString());
+      } catch (_) {
+        parsedTime = null;
+      }
+    }
 
     return LocationModel(
-      location_id: json['location_id'],
-      emp_id: json['emp_id'],
-      emp_name: json['emp_name'],
-      posted: json['posted'] ?? 0,
-      file_name: json['file_name'],
+      location_id   : json['location_id'],
+      emp_id        : json['emp_id'],
+      emp_name      : json['emp_name'],
+      posted        : json['posted'] ?? 0,
+      file_name     : json['file_name'],
       total_distance: json['total_distance'],
-
-      location_date: json['location_date'] != null
-          ? dateFormat.parse(json['location_date'].toString())
-          : null,
-
-      location_time: json['location_time'] != null
-          ? timeFormat.parse(json['location_time'].toString())
-          : null,
-
-      body: json['body'] != null && json['body'].toString().isNotEmpty
+      location_date : parsedDate,
+      location_time : parsedTime,
+      body          : json['body'] != null && json['body'].toString().isNotEmpty
           ? Uint8List.fromList(base64Decode(json['body'].toString()))
           : null,
     );
@@ -59,19 +156,24 @@ class LocationModel {
   // ----------------------
   Map<String, dynamic> toMap() {
     return {
-      'location_id': location_id,
-      'emp_id': emp_id,
-      'emp_name': emp_name,
-      'posted': posted,
-      'file_name': file_name,
+      'location_id'   : location_id,
+      'emp_id'        : emp_id,
+      'emp_name'      : emp_name,
+      'posted'        : posted,
+      'file_name'     : file_name,
       'total_distance': total_distance,
-      'location_date': location_date != null
-          ? DateFormat('dd-MMM-yyyy').format(location_date!)
-          : DateFormat('dd-MMM-yyyy').format(DateTime.now()),
-      'location_time': location_time != null
+
+      // ✅ FIX: Changed from 'dd-MMM-yyyy' to 'MM/dd/yyyy' to match API expectation
+      // e.g. 03/11/2026 instead of 11-Mar-2026
+      'location_date' : location_date != null
+          ? DateFormat('MM/dd/yyyy').format(location_date!)
+          : DateFormat('MM/dd/yyyy').format(DateTime.now()),
+
+      'location_time' : location_time != null
           ? DateFormat('HH:mm:ss').format(location_time!)
           : DateFormat('HH:mm:ss').format(DateTime.now()),
-      'body': body != null ? base64Encode(body!) : null,
+
+      'body'          : body != null ? base64Encode(body!) : null,
     };
   }
 }
